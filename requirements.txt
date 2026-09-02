@@ -1,7 +1,15 @@
-streamlit>=1.40
-duckdb>=1.0
-pandas>=2.0
-numpy>=1.26
-plotly>=5.20
-pyarrow>=15.0
-openai>=1.30
+# Limite superior por MAJOR de proposito.
+#
+# O Streamlit Cloud reinstala as dependencias a cada deploy, entao um app que
+# funciona hoje pode quebrar num rebuild daqui a meses sem ninguem ter tocado
+# no codigo. Foi exatamente o que aconteceu aqui: o `>=1.40` puxou o 1.63, que
+# transformou em ERRO uma escrita em session_state que ate o 1.62 passava --
+# e o painel quebrou em producao enquanto rodava normal na maquina local, que
+# tinha a versao antiga. Teto por major evita a repeticao disso.
+streamlit>=1.62,<2
+duckdb>=1.0,<2
+pandas>=2.0,<4
+numpy>=1.26,<3
+plotly>=5.20,<8
+pyarrow>=15.0,<25
+openai>=1.30,<3
