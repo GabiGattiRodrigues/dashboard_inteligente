@@ -377,8 +377,25 @@ def aba_alertas(con, dom, fim, filtros):
 
     c1, c2, c3 = st.columns([2, 1.5, 1.5])
     with c1:
-        ref = st.date_input("Dia analisado", value=fim, key=f"al_d_{dom.chave}",
-                            format="DD/MM/YYYY")
+        # O dia analisado NAO e guardado na chave do proprio widget.
+        #
+        # O botao "Ver esse dia", mais abaixo, precisa mudar essa data. Escrever
+        # em `st.session_state["al_d_..."]` depois que o date_input ja foi
+        # criado nesta execucao levanta StreamlitWidgetAlreadyInstantiatedError
+        # -- e como o botao so aparece nos dias sem alerta, o erro nao acontece
+        # em teste nenhum que nao clique exatamente ali.
+        #
+        # Entao o valor mora numa chave nossa (`al_dia_*`) e o widget ganha um
+        # sufixo que muda quando queremos forcar outra data. Chave nova = widget
+        # novo = o `value` volta a valer, que e o unico jeito de reposicionar um
+        # date_input sem escrever na chave dele.
+        chave_dia = f"al_dia_{dom.chave}"
+        chave_geracao = f"al_ger_{dom.chave}"
+        st.session_state.setdefault(chave_geracao, 0)
+        padrao = st.session_state.get(chave_dia) or fim
+        ref = st.date_input(
+            "Dia analisado", value=padrao, format="DD/MM/YYYY",
+            key=f"al_d_{dom.chave}_{st.session_state[chave_geracao]}")
         ref = ref if isinstance(ref, date) else fim
     with c2:
         z = st.slider("Quão estranho precisa ser", 2.0, 5.0, 3.0, 0.25,
@@ -408,7 +425,8 @@ def aba_alertas(con, dom, fim, filtros):
             with c2:
                 if st.button("Ver esse dia", key=f"al_ir_{dom.chave}",
                              use_container_width=True):
-                    st.session_state[f"al_d_{dom.chave}"] = anterior
+                    st.session_state[chave_dia] = anterior
+                    st.session_state[chave_geracao] += 1
                     st.rerun()
     else:
         # Os cartões ocupam a largura toda: cada um carrega o motivo provável,
