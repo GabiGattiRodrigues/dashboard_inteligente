@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.streamlit/secrets.toml
+.DS_Store
+node_modules/
+package.json
+package-lock.json
+data/raw/
+chave-openai.txt
+_lixo/

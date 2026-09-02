@@ -1,0 +1,925 @@
+<title>Três painéis, um motor</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Public+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+/* ── Tokens ─────────────────────────────────────────────────────────────
+   Paleta clara completa aqui, no :root sem carimbo. O escuro so redefine
+   tokens, nas duas guardas, para que a escolha do leitor vença nos dois
+   sentidos. Nenhuma cor nasce dentro de um bloco de tema.                */
+:root {
+  color-scheme: light;
+
+  --papel:      #f5f8fc;
+  --superficie: #ffffff;
+  --sup-2:      #eef3fa;
+  --linha:      #dbe4f0;
+  --linha-forte:#bcc9da;
+
+  --tinta:      #0f1b2d;
+  --tinta-2:    #46586e;
+  --tinta-3:    #7a8ba0;
+
+  --azul:       #2563eb;
+  --azul-fraco: #e6eefc;
+  --teal:       #0d9488;
+  --cinza-barra:#b8c4d2;
+
+  --bom:        #0a8a3c;
+  --atencao:    #a16207;
+  --grave:      #c25a2c;
+  --critico:    #c0392b;
+  --bom-fundo:  #e8f4ee;
+  --alerta-fundo:#fdf4e3;
+
+  --sombra: 0 1px 2px rgba(16,20,24,.05), 0 4px 14px rgba(16,20,24,.04);
+  --r: 10px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --papel:      #0b1016;
+    --superficie: #151c26;
+    --sup-2:      #1c2632;
+    --linha:      #26313f;
+    --linha-forte:#37455a;
+    --tinta:      #eef4fb;
+    --tinta-2:    #a9b8ca;
+    --tinta-3:#7d8da0;
+    --azul:       #4a95e8;
+    --azul-fraco: #16283f;
+    --teal:       #2dd4bf;
+    --cinza-barra:#4a545e;
+    --bom:        #35c035;
+    --atencao:    #e6b03c;
+    --grave:      #ec8c5f;
+    --critico:    #e46a6a;
+    --bom-fundo:  #14301a;
+    --alerta-fundo:#2e2412;
+    --sombra: 0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.25);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --papel:      #0b1016;
+  --superficie: #151c26;
+  --sup-2:      #1c2632;
+  --linha:      #26313f;
+  --linha-forte:#37455a;
+  --tinta:      #eef4fb;
+  --tinta-2:    #a9b8ca;
+  --tinta-3:#7d8da0;
+  --azul:       #4a95e8;
+  --azul-fraco: #16283f;
+  --teal:       #2dd4bf;
+  --cinza-barra:#4a545e;
+  --bom:        #35c035;
+  --atencao:    #e6b03c;
+  --grave:      #ec8c5f;
+  --critico:    #e46a6a;
+  --bom-fundo:  #14301a;
+  --alerta-fundo:#2e2412;
+  --sombra: 0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.25);
+}
+
+/* ── Base ───────────────────────────────────────────────────────────── */
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--papel);
+  color: var(--tinta);
+  font-family: "Public Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-text-size-adjust: 100%;
+}
+
+.envelope { max-width: 720px; margin: 0 auto; padding: 0 16px 72px; }
+
+h1, h2, h3, .rotulo, .chip, .aba {
+  font-family: Archivo, ui-sans-serif, system-ui, sans-serif;
+}
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+
+.num, .sql, .mono {
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+a { color: var(--azul); }
+:focus-visible { outline: 2px solid var(--azul); outline-offset: 2px; border-radius: 4px; }
+
+.rotulo {
+  font-size: 11px; font-weight: 600; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--tinta-3);
+}
+
+/* ── Cabeçalho ──────────────────────────────────────────────────────── */
+.topo { padding: 34px 0 20px; }
+.topo h1 {
+  font-size: clamp(28px, 8vw, 40px); font-weight: 700;
+  letter-spacing: -.025em; line-height: 1.08;
+}
+.topo .lead {
+  margin: 12px 0 0; color: var(--tinta-2); font-size: 16px;
+  max-width: 62ch;
+}
+.aviso-amostra {
+  margin-top: 18px; padding: 11px 14px;
+  border: 1px solid var(--linha); border-left: 3px solid var(--azul);
+  border-radius: 0 var(--r) var(--r) 0;
+  background: var(--superficie);
+  font-size: 13.5px; color: var(--tinta-2);
+}
+
+/* ── Seletor de domínio ─────────────────────────────────────────────── */
+.seletor {
+  position: sticky; top: 0; z-index: 20;
+  margin: 22px -16px 0; padding: 10px 16px;
+  background: color-mix(in srgb, var(--papel) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--linha);
+}
+.abas { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.abas::-webkit-scrollbar { display: none; }
+.aba {
+  flex: 1 0 auto; display: flex; align-items: center; gap: 7px;
+  padding: 9px 13px; border: 1px solid var(--linha);
+  background: var(--superficie); color: var(--tinta-2);
+  border-radius: 8px; font-size: 13.5px; font-weight: 600;
+  white-space: nowrap; cursor: pointer;
+  transition: border-color .12s, color .12s, background .12s;
+}
+.aba:hover { border-color: var(--linha-forte); }
+.aba[aria-selected="true"] {
+  background: var(--azul); border-color: var(--azul); color: #fff;
+}
+.aba .rosto { font-size: 15px; line-height: 1; }
+.aba img.rosto { width: 30px; height: 30px; object-fit: contain;
+                 margin: -6px 0; }
+
+/* ── Painel ─────────────────────────────────────────────────────────── */
+.painel[hidden] { display: none !important; }
+
+.cab-dom { padding: 26px 0 6px; }
+.cab-dom h2 {
+  font-size: 24px; font-weight: 700; letter-spacing: -.02em;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.cab-dom .sub { color: var(--tinta-3); font-size: 14px; margin-top: 2px; }
+.cab-dom .desc { color: var(--tinta-2); margin-top: 10px; font-size: 14.5px; }
+
+.selo {
+  font-family: Archivo, sans-serif; font-size: 10.5px; font-weight: 700;
+  letter-spacing: .06em; text-transform: uppercase;
+  padding: 4px 9px; border-radius: 999px; white-space: nowrap;
+}
+.selo.real { background: var(--bom-fundo); color: var(--bom);
+             border: 1px solid color-mix(in srgb, var(--bom) 30%, transparent); }
+.selo.sim  { background: var(--alerta-fundo); color: var(--atencao);
+             border: 1px solid color-mix(in srgb, var(--atencao) 34%, transparent); }
+
+.agente-chip {
+  display: flex; align-items: center; gap: 11px;
+  margin-top: 14px; padding: 11px 14px;
+  background: var(--superficie); border: 1px solid var(--linha);
+  border-radius: var(--r);
+}
+.agente-chip .rosto { font-size: 22px; line-height: 1; }
+.agente-chip img.rosto { width: 52px; height: 52px; object-fit: contain;
+                         flex: 0 0 auto; margin: -6px 0; }
+.agente-chip b { font-family: Archivo, sans-serif; font-size: 14.5px; }
+
+.agente-vigia {
+  display: flex; align-items: center; gap: 11px; margin-bottom: 12px;
+}
+.agente-vigia img.rosto { width: 52px; height: 52px; object-fit: contain;
+                          flex: 0 0 auto; margin: -6px 0; }
+.agente-vigia .rosto { font-size: 22px; line-height: 1; }
+.agente-vigia b { font-family: Archivo, sans-serif; font-size: 14.5px; }
+.agente-vigia .papel { color: var(--tinta-2); font-size: 12.5px;
+                       line-height: 1.45; }
+.agente-chip .papel { color: var(--tinta-2); font-size: 12.5px; line-height: 1.45; }
+
+/* ── Seções ─────────────────────────────────────────────────────────── */
+section { margin-top: 30px; }
+section > h3 {
+  font-size: 12px; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--tinta-3);
+  padding-bottom: 8px; border-bottom: 1px solid var(--linha);
+  margin-bottom: 14px;
+}
+.legenda { color: var(--tinta-3); font-size: 12.5px; margin-top: 10px;
+           line-height: 1.5; }
+
+.cartao {
+  background: var(--superficie); border: 1px solid var(--linha);
+  border-radius: var(--r); box-shadow: var(--sombra);
+}
+
+/* ── Faixa de comparação ────────────────────────────────────────────── */
+.comparacao { display: grid; grid-template-columns: 1fr auto 1fr; overflow: hidden; }
+.comparacao .bloco { padding: 13px 15px; min-width: 0; }
+.comparacao .bloco.alt { background: var(--sup-2); }
+.comparacao .vs {
+  display: flex; align-items: center; padding: 0 10px;
+  font-family: Archivo, sans-serif; font-size: 11px; font-weight: 700;
+  color: var(--tinta-3); letter-spacing: .06em;
+}
+.comparacao .data {
+  font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums;
+  font-size: 13px; font-weight: 500; margin-top: 4px; color: var(--tinta);
+  line-height: 1.35;
+}
+.comparacao .det { color: var(--tinta-3); font-size: 11.5px; margin-top: 2px; }
+.regra {
+  grid-column: 1 / -1; padding: 11px 15px;
+  border-top: 1px solid var(--linha); color: var(--tinta-2); font-size: 13px;
+}
+.regra b { color: var(--tinta); font-weight: 600; }
+
+/* ── Cartões de métrica ─────────────────────────────────────────────── */
+.kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+@media (min-width: 620px) { .kpis { grid-template-columns: repeat(4, 1fr); } }
+
+.kpi { padding: 13px 14px; }
+.kpi .nome {
+  font-family: Archivo, sans-serif; font-size: 10.5px; font-weight: 600;
+  letter-spacing: .07em; text-transform: uppercase; color: var(--tinta-3);
+  line-height: 1.3; min-height: 2.6em;
+}
+.kpi .valor {
+  font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums;
+  font-size: 19px; font-weight: 600; letter-spacing: -.02em;
+  margin: 5px 0 3px; line-height: 1.15;
+}
+.kpi .delta {
+  font-family: "IBM Plex Mono", monospace; font-size: 12.5px; font-weight: 600;
+  display: flex; align-items: center; gap: 4px;
+}
+.kpi .delta.bom  { color: var(--bom); }
+.kpi .delta.ruim { color: var(--critico); }
+.kpi .delta.neutro { color: var(--tinta-3); }
+.kpi .antes {
+  color: var(--tinta-3); font-size: 11px; margin-top: 3px;
+  font-family: "IBM Plex Mono", monospace;
+}
+
+/* ── Alertas ────────────────────────────────────────────────────────── */
+.resumo-alerta {
+  padding: 13px 15px; font-size: 15px; line-height: 1.5;
+  border-left: 3px solid var(--azul); border-radius: 0 var(--r) var(--r) 0;
+}
+.alerta { padding: 12px 15px; margin-top: 9px; border-left: 3px solid; }
+.alerta.alta  { border-left-color: var(--critico); }
+.alerta.media { border-left-color: var(--grave); }
+.alerta.baixa { border-left-color: var(--atencao); }
+.alerta .marca {
+  font-family: Archivo, sans-serif; font-size: 10px; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase; margin-bottom: 5px;
+  display: flex; align-items: center; gap: 6px;
+}
+.alerta.alta  .marca { color: var(--critico); }
+.alerta.media .marca { color: var(--grave); }
+.alerta.baixa .marca { color: var(--atencao); }
+.alerta .corpo { font-size: 13.5px; line-height: 1.55; }
+.alerta .acao  { color: var(--tinta-2); font-size: 12.5px; margin-top: 6px;
+                 line-height: 1.5; }
+/* O motivo provável vem depois do aviso, recuado, para ficar claro que é
+   leitura sobre o alerta e não o alerta em si. */
+.alerta .motivo {
+  margin-top: 9px; padding: 9px 12px; font-size: 12.5px; line-height: 1.55;
+  color: var(--tinta-2); background: var(--sup-2); border-radius: 7px;
+}
+.alerta .motivo strong { color: var(--tinta); font-weight: 600; }
+
+/* ── Funil da jornada ───────────────────────────────────────────────── */
+.funil-passo { padding: 9px 0; border-bottom: 1px solid var(--linha); }
+.funil-passo:last-child { border-bottom: 0; }
+.funil-topo { display: flex; justify-content: space-between; gap: 10px;
+              align-items: baseline; margin-bottom: 6px; }
+.funil-topo span { font-size: 13px; color: var(--tinta); min-width: 0;
+                   overflow: hidden; text-overflow: ellipsis;
+                   white-space: nowrap; }
+.funil-topo .n { font-family: Archivo, sans-serif; font-weight: 600;
+                 font-variant-numeric: tabular-nums; font-size: 12.5px;
+                 color: var(--tinta-2); white-space: nowrap; flex: 0 0 auto; }
+.funil-trilho { height: 9px; background: var(--sup-2); border-radius: 3px; }
+.funil-trilho i { display: block; height: 100%; background: var(--azul);
+                  border-radius: 3px; }
+
+/* ── Os quatro níveis de comparação ─────────────────────────────────── */
+.niveis { display: grid; gap: 9px; }
+.nivel { padding: 12px 14px; }
+.nivel .rot {
+  font-family: Archivo, sans-serif; font-size: 10px; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--azul);
+}
+.nivel .base { font-size: 12px; color: var(--tinta-3); margin: 2px 0 8px;
+               font-variant-numeric: tabular-nums; }
+.nivel .item { display: flex; justify-content: space-between; gap: 10px;
+               align-items: baseline; padding: 4px 0;
+               border-top: 1px solid var(--linha); }
+.nivel .item span:first-child { font-size: 13px; color: var(--tinta);
+               min-width: 0; overflow: hidden; text-overflow: ellipsis;
+               white-space: nowrap; }
+.nivel .item .v { font-family: Archivo, sans-serif; font-weight: 600;
+               font-size: 13px; font-variant-numeric: tabular-nums;
+               color: var(--tinta-2); white-space: nowrap; flex: 0 0 auto; }
+.nivel .item .v.bom  { color: var(--bom); }
+.nivel .item .v.ruim { color: var(--critico); }
+
+/* ── Conversa ───────────────────────────────────────────────────────── */
+.turno { margin-top: 12px; }
+.balao-p {
+  display: inline-block; max-width: 92%;
+  background: var(--azul); color: #fff;
+  padding: 9px 14px; border-radius: 14px 14px 4px 14px;
+  font-size: 14.5px; font-weight: 500;
+}
+.linha-p { display: flex; justify-content: flex-end; }
+.resposta { display: flex; gap: 10px; margin-top: 10px; }
+.resposta .rosto {
+  flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%;
+  background: var(--sup-2); border: 1px solid var(--linha);
+  display: grid; place-items: center; font-size: 15px;
+}
+.resposta img.rosto {
+  width: 44px; height: 44px; border-radius: 0; border: 0;
+  background: none; object-fit: contain; margin-top: -6px;
+}
+.resposta .texto {
+  flex: 1; min-width: 0; padding: 11px 14px; font-size: 14px; line-height: 1.6;
+}
+.herdou {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: Archivo, sans-serif; font-size: 10px; font-weight: 700;
+  letter-spacing: .06em; text-transform: uppercase;
+  color: var(--azul); background: var(--azul-fraco);
+  border-radius: 999px; padding: 3px 8px; margin-bottom: 7px;
+}
+details.tecnico { margin-top: 9px; }
+details.tecnico summary {
+  cursor: pointer; font-family: Archivo, sans-serif; font-size: 11px;
+  font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--tinta-3); list-style: none;
+}
+details.tecnico summary::-webkit-details-marker { display: none; }
+details.tecnico summary::before { content: "▸ "; }
+details.tecnico[open] summary::before { content: "▾ "; }
+.sql {
+  margin-top: 8px; padding: 11px 12px; background: var(--sup-2);
+  border: 1px solid var(--linha); border-radius: 8px;
+  font-size: 11.5px; line-height: 1.55; color: var(--tinta-2);
+  overflow-x: auto; white-space: pre;
+}
+.plano { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.plano span {
+  font-family: "IBM Plex Mono", monospace; font-size: 11px;
+  background: var(--sup-2); border: 1px solid var(--linha);
+  border-radius: 6px; padding: 3px 8px; color: var(--tinta-2);
+}
+.plano b { color: var(--tinta); font-weight: 600; }
+
+/* ── Gráficos ───────────────────────────────────────────────────────── */
+.grafico { padding: 15px 14px 12px; }
+.grafico svg { display: block; width: 100%; height: auto; overflow: visible; }
+.eixo { font-family: "IBM Plex Mono", monospace; font-size: 9.5px;
+        fill: var(--tinta-3); }
+
+.cascata-linha {
+  display: grid; grid-template-columns: 1fr; gap: 3px;
+  padding: 6px 0; border-bottom: 1px solid var(--linha);
+}
+.cascata-linha:last-child { border-bottom: 0; }
+.cascata-topo { display: flex; justify-content: space-between; gap: 10px;
+                align-items: baseline; }
+.cascata-nome { font-size: 13px; color: var(--tinta); min-width: 0;
+                overflow-wrap: anywhere; }
+.cascata-linha.total .cascata-nome { font-weight: 600;
+  font-family: "IBM Plex Mono", monospace; font-size: 12px; }
+.cascata-valor {
+  font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums;
+  font-size: 12.5px; font-weight: 600; white-space: nowrap;
+}
+.cascata-valor.sobe { color: var(--azul); }
+.cascata-valor.desce { color: var(--critico); }
+.cascata-valor.total { color: var(--tinta-2); }
+.trilho { position: relative; height: 8px; background: var(--sup-2);
+          border-radius: 3px; overflow: hidden; }
+.trilho i { position: absolute; top: 0; height: 100%; border-radius: 2px; }
+
+.barras { display: flex; flex-direction: column; gap: 9px; padding: 14px; }
+.barra-item { display: grid; gap: 4px; }
+.barra-topo { display: flex; justify-content: space-between; gap: 10px;
+              align-items: baseline; font-size: 13px; }
+.barra-topo .v { font-family: "IBM Plex Mono", monospace;
+                 font-variant-numeric: tabular-nums; font-size: 12.5px;
+                 color: var(--tinta-2); white-space: nowrap; }
+.barra-trilho { height: 9px; background: var(--sup-2); border-radius: 3px; }
+.barra-trilho i { display: block; height: 100%; background: var(--azul);
+                  border-radius: 3px; }
+
+/* ── Texto analítico ────────────────────────────────────────────────── */
+.analise { padding: 14px 15px; }
+.analise p { margin: 0 0 11px; font-size: 14px; line-height: 1.62; }
+.analise p:last-child { margin-bottom: 0; }
+.analise strong { font-weight: 600; }
+.analise em { color: var(--tinta-2); font-style: italic; }
+
+.ressalva {
+  margin-top: 12px; padding: 11px 14px; font-size: 12.5px;
+  color: var(--tinta-2); line-height: 1.55;
+  background: var(--sup-2); border-radius: 8px;
+  border-left: 3px solid var(--linha-forte);
+}
+.ressalva strong { color: var(--tinta); }
+
+.fonte { margin-top: 30px; padding-top: 16px; border-top: 1px solid var(--linha);
+         font-size: 12.5px; color: var(--tinta-3); line-height: 1.6; }
+.fonte b { color: var(--tinta-2); }
+.fonte ul { margin: 8px 0 0; padding-left: 18px; }
+.fonte li { margin-bottom: 6px; }
+
+/* ── Rodapé ─────────────────────────────────────────────────────────── */
+.rodape { margin-top: 46px; padding-top: 22px; border-top: 1px solid var(--linha); }
+.rodape h3 { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+.rodape p { color: var(--tinta-2); font-size: 13.5px; margin: 0 0 10px; }
+.rodape ul { margin: 0; padding-left: 18px; color: var(--tinta-2);
+             font-size: 13.5px; }
+.rodape li { margin-bottom: 7px; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+</style>
+
+<script type="application/json" id="dados">__DADOS__</script>
+
+<div class="envelope">
+
+  <header class="topo">
+    <h1>Três painéis, um motor</h1>
+    <p class="lead">
+      Um produto de analytics em que o agente não é um chat colado ao lado do
+      dashboard: ele lê a mesma camada semântica que desenha os gráficos,
+      respeita os mesmos filtros e devolve o mesmo número. Três domínios rodam
+      no mesmo motor, cada um com o seu agente.
+    </p>
+    <div class="aviso-amostra">
+      <b>Esta é uma amostra estática</b> — feita para caber no celular. Todos os
+      números, frases e barras abaixo saíram dos motores do app de verdade
+      (mesmo SQL, mesma decomposição, mesmo agente); só a interação é que ficou
+      de fora. No app rodando há filtros, seletor de período, causa raiz por
+      qualquer métrica e conversa aberta com cada agente.
+    </div>
+  </header>
+
+  <nav class="seletor" aria-label="Escolha o domínio">
+    <div class="abas" role="tablist" id="abas"></div>
+  </nav>
+
+  <main id="paineis"></main>
+
+  <footer class="rodape">
+    <h3>O que ficou de fora da amostra</h3>
+    <p>
+      O app é interativo; esta página é um retrato dele em um momento escolhido.
+      Rodando, ele tem:
+    </p>
+    <ul>
+      <li><b>Filtros que valem para tudo</b> — categoria, região, canal, faixa de
+        score. O que se filtra na barra lateral vale para os gráficos <em>e</em>
+        para o agente, então o chat nunca responde sobre um recorte diferente do
+        que está na tela.</li>
+      <li><b>Período livre</b> — últimos N dias, mês fechado ou intervalo, com
+        sete regras de comparação (dia contra D-7, mês até aqui contra o mesmo
+        trecho do mês passado, e por aí).</li>
+      <li><b>Causa raiz sob demanda</b> — qualquer métrica por qualquer dimensão,
+        não só o par escolhido aqui.</li>
+      <li><b>Conversa aberta</b> — com memória: depois de “quanto foi a receita?”,
+        a pergunta seguinte é “e por quê?”, e o agente entende. Com chave de API
+        ele usa o modelo para interpretar e narrar; sem chave, um interpretador
+        determinístico assume e o link nunca quebra.</li>
+      <li><b>Alertas ajustáveis</b> — dá para baixar o corte de materialidade até
+        zero e ver o painel encher de ruído. É a demonstração de por que o corte
+        existe.</li>
+    </ul>
+  </footer>
+</div>
+
+<script>
+(() => {
+  const dados = JSON.parse(document.getElementById("dados").textContent);
+  const abas = document.getElementById("abas");
+  const paineis = document.getElementById("paineis");
+
+  // ── utilidades ────────────────────────────────────────────────────────
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  // Os motores emitem **negrito** e *itálico*; converte só isso, sobre texto
+  // já escapado — nada do JSON entra como HTML cru.
+  const md = (s) => esc(s)
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>");
+
+  const el = (tag, cls, html) => {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (html != null) n.innerHTML = html;
+    return n;
+  };
+
+  // ── seções ────────────────────────────────────────────────────────────
+  function comparacao(c) {
+    const s = el("div", "cartao comparacao");
+    s.innerHTML = `
+      <div class="bloco">
+        <div class="rotulo">Período selecionado</div>
+        <div class="data">${esc(c.atual)}</div>
+        <div class="det">${esc(c.atual_det)}</div>
+      </div>
+      <div class="vs">vs</div>
+      <div class="bloco alt">
+        <div class="rotulo">Comparado com</div>
+        <div class="data">${esc(c.anterior)}</div>
+        <div class="det">${esc(c.anterior_det)}</div>
+      </div>
+      <div class="regra"><span class="rotulo">Regra</span>
+        <div><b>${esc(c.regra)}</b></div>
+      </div>`;
+    return s;
+  }
+
+  function kpis(lista) {
+    const g = el("div", "kpis");
+    for (const k of lista) {
+      const classe = k.melhorou === null ? "neutro" : (k.melhorou ? "bom" : "ruim");
+      const seta = k.sentido === "sobe" ? "▲" : k.sentido === "desce" ? "▼" : "—";
+      const c = el("div", "cartao kpi");
+      c.innerHTML = `
+        <div class="nome">${esc(k.rotulo)}</div>
+        <div class="valor">${esc(k.valor)}</div>
+        <div class="delta ${classe}"><span aria-hidden="true">${seta}</span>
+          <span>${esc(k.delta ?? "—")}</span></div>
+        <div class="antes">antes ${esc(k.anterior)}</div>`;
+      c.title = k.definicao || "";
+      g.appendChild(c);
+    }
+    return g;
+  }
+
+  function alertas(a, agente) {
+    const wrap = document.createDocumentFragment();
+    // Aqui entra a cara de ALERTA: mesmo bicho da conversa, expressao atenta.
+    const quem = el("div", "agente-vigia");
+    quem.innerHTML = rostoHTML(agente, "alerta", "rosto") +
+      `<span><b>${esc(agente.nome)}</b> está de olho` +
+      `<div class="papel">Varro todas as métricas contra o histórico e contra ` +
+      `os limites combinados, segmento a segmento — e trago o provável motivo ` +
+      `junto com o aviso.</div></span>`;
+    wrap.appendChild(quem);
+    wrap.appendChild(el("div", "cartao resumo-alerta", md(a.resumo)));
+    const nomes = { alta: "Severidade alta", media: "Severidade média",
+                    baixa: "Severidade baixa" };
+    const icones = { alta: "▲", media: "◆", baixa: "●" };
+    for (const it of a.itens) {
+      const c = el("div", "cartao alerta " + it.severidade);
+      c.innerHTML = `
+        <div class="marca"><span aria-hidden="true">${icones[it.severidade]}</span>
+          ${nomes[it.severidade]} · ${it.tipo === "limite"
+            ? "limite de negócio" : "desvio do histórico"}</div>
+        <div class="corpo">${md(it.texto)}</div>
+        <div class="acao">${md(it.acao)}</div>
+        ${it.motivo ? `<div class="motivo">${md(it.motivo)}</div>` : ""}`;
+      wrap.appendChild(c);
+    }
+    return wrap;
+  }
+
+  function conversa(turnos, agente) {
+    const wrap = document.createDocumentFragment();
+    for (const t of turnos) {
+      const bloco = el("div", "turno");
+      const linha = el("div", "linha-p");
+      linha.appendChild(el("div", "balao-p", esc(t.pergunta)));
+      bloco.appendChild(linha);
+
+      const r = el("div", "resposta");
+      const face = document.createElement("div");
+      face.innerHTML = rostoHTML(agente, "animada", "rosto");
+      r.appendChild(face.firstElementChild);
+      const texto = el("div", "cartao texto");
+      const partes = t.resposta.split("\n\n").filter(Boolean);
+      texto.innerHTML =
+        (t.herdou ? `<div class="herdou">herdou o contexto</div>` : "") +
+        partes.map(p => `<p style="margin:0 0 9px">${md(p)}</p>`).join("");
+      texto.querySelector("p:last-child")?.style.setProperty("margin-bottom", "0");
+
+      const det = el("details", "tecnico");
+      det.innerHTML = `<summary>como esta resposta foi montada</summary>
+        <div class="plano">
+          <span>intenção <b>${esc(t.plano.intencao)}</b></span>
+          <span>métrica <b>${esc(t.plano.metrica)}</b></span>
+          ${t.plano.dimensao ? `<span>quebra <b>${esc(t.plano.dimensao)}</b></span>` : ""}
+        </div>
+        <div class="sql">${esc(t.sql || "—")}</div>`;
+      texto.appendChild(det);
+
+      r.appendChild(texto);
+      bloco.appendChild(r);
+      wrap.appendChild(bloco);
+    }
+    return wrap;
+  }
+
+  // Cascata em linhas: um waterfall vertical com nove categorias fica
+  // ilegível em 375px de largura. Cada linha é uma barra flutuante entre o
+  // acumulado antes e depois — mesma leitura, orientação que cabe no polegar.
+  function cascata(c) {
+    const passos = c.cascata;
+    let acumulado = 0;
+    const marcos = passos.map(p => {
+      if (p.tipo === "total") { acumulado = p.valor; return { ini: 0, fim: p.valor }; }
+      const ini = acumulado; acumulado += p.valor;
+      return { ini: Math.min(ini, acumulado), fim: Math.max(ini, acumulado) };
+    });
+    const teto = Math.max(...marcos.map(m => m.fim), 0);
+    const piso = Math.min(...marcos.map(m => m.ini), 0);
+    const faixa = (teto - piso) || 1;
+
+    const box = el("div", "cartao");
+    box.style.padding = "6px 14px";
+    passos.forEach((p, i) => {
+      const m = marcos[i];
+      const esq = ((m.ini - piso) / faixa) * 100;
+      const larg = Math.max(((m.fim - m.ini) / faixa) * 100, 0.9);
+      const dir = p.tipo === "total" ? "total" : (p.valor >= 0 ? "sobe" : "desce");
+      const cor = p.tipo === "total" ? "var(--cinza-barra)"
+                : (p.valor >= 0 ? "var(--azul)" : "var(--critico)");
+      const linha = el("div", "cascata-linha" + (p.tipo === "total" ? " total" : ""));
+      linha.innerHTML = `
+        <div class="cascata-topo">
+          <span class="cascata-nome">${esc(p.rotulo)}</span>
+          <span class="cascata-valor ${dir}">${esc(p.rotulo_valor)}</span>
+        </div>
+        <div class="trilho"><i style="left:${esq}%;width:${larg}%;
+             background:${cor}"></i></div>`;
+      box.appendChild(linha);
+    });
+    return box;
+  }
+
+  function barras(s) {
+    if (!s) return document.createDocumentFragment();
+    const teto = Math.max(...s.itens.map(i => Math.abs(i.valor)), 1);
+    const box = el("div", "cartao barras");
+    for (const it of s.itens) {
+      const b = el("div", "barra-item");
+      b.innerHTML = `
+        <div class="barra-topo"><span>${esc(it.nome)}</span>
+          <span class="v">${esc(it.rotulo)}</span></div>
+        <div class="barra-trilho">
+          <i style="width:${(Math.abs(it.valor) / teto) * 100}%"></i></div>`;
+      box.appendChild(b);
+    }
+    return box;
+  }
+
+  // Série diária: área + linha, com a média móvel por cima e o último ponto
+  // destacado. SVG inline; a página não carrega biblioteca de gráfico.
+  function serie(s) {
+    if (!s || s.valores.length < 3) return document.createDocumentFragment();
+    const W = 640, H = 190, P = { t: 12, r: 10, b: 20, l: 10 };
+    const n = s.valores.length;
+    const vals = s.valores.concat(s.media_movel.filter(v => v !== null));
+    const min = Math.min(...vals), max = Math.max(...vals);
+    const faixa = (max - min) || 1;
+    const x = i => P.l + (i / (n - 1)) * (W - P.l - P.r);
+    const y = v => P.t + (1 - (v - min) / faixa) * (H - P.t - P.b);
+
+    const linha = s.valores.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+    const area = `${linha} L${x(n - 1).toFixed(1)},${H - P.b} L${x(0).toFixed(1)},${H - P.b} Z`;
+    const mm = s.media_movel.map((v, i) => v === null ? null :
+      `${x(i).toFixed(1)},${y(v).toFixed(1)}`).filter(Boolean);
+    const mmPath = mm.length ? "M" + mm.join(" L") : "";
+
+    const ultimo = n - 1;
+    const box = el("div", "cartao grafico");
+    box.innerHTML = `
+      <svg viewBox="0 0 ${W} ${H}" role="img"
+           aria-label="${esc(s.metrica)} por dia, de ${esc(s.datas[0])} a ${esc(s.datas[ultimo])}">
+        <defs>
+          <linearGradient id="g${Math.random().toString(36).slice(2, 7)}" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="var(--azul)" stop-opacity=".18"/>
+            <stop offset="100%" stop-color="var(--azul)" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <line x1="${P.l}" y1="${H - P.b}" x2="${W - P.r}" y2="${H - P.b}"
+              stroke="var(--linha)" stroke-width="1"/>
+        <path d="${area}" fill="var(--azul)" fill-opacity=".12"/>
+        <path d="${linha}" fill="none" stroke="var(--azul)" stroke-width="1.4"
+              stroke-linejoin="round"/>
+        ${mmPath ? `<path d="${mmPath}" fill="none" stroke="var(--teal)"
+              stroke-width="2" stroke-linejoin="round"/>` : ""}
+        <circle cx="${x(ultimo).toFixed(1)}" cy="${y(s.valores[ultimo]).toFixed(1)}"
+                r="4" fill="var(--azul)" stroke="var(--superficie)" stroke-width="2"/>
+        <text class="eixo" x="${P.l}" y="${H - 6}">${esc(s.datas[0])}</text>
+        <text class="eixo" x="${W - P.r}" y="${H - 6}" text-anchor="end">${esc(s.datas[ultimo])}</text>
+      </svg>
+      <div class="legenda">
+        <span style="color:var(--azul)">━</span> ${esc(s.metrica)} por dia &nbsp;
+        <span style="color:var(--teal)">━</span> média móvel de 7 dias &nbsp;·&nbsp;
+        último ponto: <b>${esc(s.rotulos[ultimo])}</b>
+      </div>`;
+    return box;
+  }
+
+  // O rosto do agente: <img> quando a foto veio embutida, emoji como reserva.
+  // `variante` e "animada" na conversa e "alerta" na aba de alertas -- mesmo
+  // bicho, expressao diferente, para a pessoa reconhecer quem esta falando.
+  function rostoHTML(agente, variante, classe) {
+    const src = agente && agente[variante];
+    if (src) {
+      return `<img class="${classe}" src="${src}" alt="${esc(agente.nome)}">`;
+    }
+    return `<span class="${classe}" aria-hidden="true">` +
+           `${esc(agente ? agente.rosto : "")}</span>`;
+  }
+
+  function analise(linhas) {
+    const box = el("div", "cartao analise");
+    box.innerHTML = linhas.map(l => `<p>${md(l)}</p>`).join("");
+    return box;
+  }
+
+  // Os quatro níveis de comparação lado a lado. A data da base aparece em
+  // cada cartão porque "-8%" sem saber contra o quê não quer dizer nada.
+  function niveis(lista) {
+    const box = el("div", "niveis");
+    for (const n of lista) {
+      const c = el("div", "cartao nivel");
+      const itens = n.metricas.map(m => {
+        const cls = m.melhorou === null ? "" : (m.melhorou ? "bom" : "ruim");
+        return `<div class="item"><span>${esc(m.rotulo)}</span>
+                <span class="v ${cls}">${esc(m.variacao ?? "—")}</span></div>`;
+      }).join("");
+      c.innerHTML = `<div class="rot">${esc(n.rotulo)}</div>
+                     <div class="base">vs ${esc(n.base)}</div>${itens}`;
+      box.appendChild(c);
+    }
+    return box;
+  }
+
+  function funil(passos) {
+    const teto = Math.max(...passos.map(p => p.valor), 1);
+    const box = el("div", "cartao");
+    box.style.padding = "6px 14px";
+    for (const p of passos) {
+      const d = el("div", "funil-passo");
+      d.innerHTML = `
+        <div class="funil-topo"><span>${esc(p.etapa)}</span>
+          <span class="n">${esc(p.rotulo)} · ${esc(p.fatia)}</span></div>
+        <div class="funil-trilho">
+          <i style="width:${(p.valor / teto) * 100}%"></i></div>`;
+      box.appendChild(d);
+    }
+    return box;
+  }
+
+  // ── montagem ──────────────────────────────────────────────────────────
+  dados.dominios.forEach((d, idx) => {
+    const aba = el("button", "aba");
+    aba.type = "button";
+    aba.setAttribute("role", "tab");
+    aba.setAttribute("aria-selected", String(idx === 0));
+    aba.setAttribute("aria-controls", "painel-" + d.chave);
+    aba.id = "aba-" + d.chave;
+    aba.innerHTML = rostoHTML(d.agente, "animada", "rosto") +
+                    `<span>${esc(d.nome)}</span>`;
+    abas.appendChild(aba);
+
+    const p = el("section", "painel");
+    p.id = "painel-" + d.chave;
+    p.setAttribute("role", "tabpanel");
+    p.setAttribute("aria-labelledby", "aba-" + d.chave);
+    p.hidden = idx !== 0;
+    p.style.margin = "0";
+
+    const cab = el("div", "cab-dom");
+    cab.innerHTML = `
+      <h2>${esc(d.nome)}
+        <span class="selo ${d.simulado ? "sim" : "real"}">
+          ${d.simulado ? "dado simulado" : "dado público real"}</span></h2>
+      <div class="sub">${esc(d.subtitulo)}</div>
+      <div class="desc">${esc(d.descricao)}</div>
+      <div class="agente-chip">
+        ${rostoHTML(d.agente, "animada", "rosto")}
+        <span><b>${esc(d.agente.nome)}</b>
+          <div class="papel">${esc(d.agente.papel)}</div></span>
+      </div>`;
+    p.appendChild(cab);
+
+    const secao = (titulo, ...filhos) => {
+      const s = el("section");
+      s.appendChild(el("h3", null, titulo));
+      filhos.forEach(f => f && s.appendChild(f));
+      p.appendChild(s);
+      return s;
+    };
+
+    secao("O período e a comparação", comparacao(d.comparacao));
+
+    if (d.analise_geral && d.analise_geral.length) {
+      const s = secao(`O que ${esc(d.agente.nome)} diz da situação`,
+                      analise(d.analise_geral));
+      s.appendChild(el("div", "legenda",
+        "No app isso é um botão. O agente varre as métricas, os alertas e a " +
+        "tendência e devolve o que piorou, o que melhorou e o que fazer " +
+        "primeiro — nesta ordem, que é a da urgência e não a do painel."));
+    }
+    secao("Os números do período", kpis(d.kpis));
+
+    if (d.funil) {
+      const s = secao("A jornada do pedido, ponta a ponta", funil(d.funil));
+      s.appendChild(el("div", "legenda",
+        "Cada barra é o número de pedidos que alcançou aquela etapa. A queda " +
+        "entre barras é onde a jornada trava."));
+    }
+
+    if (d.niveis) {
+      const s = secao(`Os quatro níveis de comparação — ${esc(d.dia_referencia || "")}`,
+                      niveis(d.niveis));
+      s.appendChild(el("div", "legenda",
+        "O mesmo dia, medido contra quatro bases diferentes. Um número pode " +
+        "parecer catástrofe contra ontem e normalidade contra a média dos " +
+        "mesmos dias da semana — a escolha da base muda a conclusão mais do " +
+        "que o dado muda."));
+    }
+
+    const sAl = secao("O que fugiu do padrão em " + esc(d.alertas.dia),
+                      alertas(d.alertas, d.agente));
+    sAl.appendChild(el("div", "legenda",
+      "Dois cortes, não um: o alerta precisa ser <b>estatisticamente estranho</b> " +
+      "(z robusto por mediana e MAD sobre 56 dias) <b>e material</b> — mover o " +
+      "total o suficiente para valer a ligação. Sem o segundo corte, segmento " +
+      "pequeno estoura z-score todo dia e ninguém lê o painel."));
+
+    const sConv = secao("Conversando com " + esc(d.agente.nome),
+                        conversa(d.conversa, d.agente));
+    sConv.appendChild(el("div", "legenda",
+      "A conversa tem memória: o que não é repetido, o agente mantém. Note o " +
+      "selo <b>herdou o contexto</b> — e abra “como esta resposta foi montada” " +
+      "para ver o plano estruturado e o SQL que o Python executou. O modelo " +
+      "planeja; quem calcula é o Python."));
+
+    const c = d.causa;
+    const sCausa = secao("Por que " + esc(c.metrica.toLowerCase()) + " mudou",
+                         cascata(c), analise(c.explicacao));
+    sCausa.insertBefore(el("div", "legenda",
+      `De <b>${esc(c.de)}</b> para <b>${esc(c.para)}</b> — ` +
+      `<b>${esc(c.delta)}</b> (${esc(c.delta_pct)}), decomposto por ` +
+      `${esc(c.dimensao.toLowerCase())}. ` +
+      (c.fecha
+        ? "As barras somam exatamente a variação total."
+        : `A soma não fecha, e o resíduo de ${esc(c.residuo)} está exposto ` +
+          `em vez de redistribuído.`)),
+      sCausa.firstChild.nextSibling);
+    if (c.aviso) sCausa.appendChild(el("div", "ressalva", md(c.aviso)));
+
+    if (d.serie) secao(esc(d.serie.metrica) + " ao longo do tempo", serie(d.serie));
+    if (d.segmentos) secao(esc(d.segmentos.metrica) + " por " +
+                           esc(d.segmentos.dimensao.toLowerCase()),
+                           barras(d.segmentos));
+    if (d.tendencia) {
+      const s = secao("A leitura de tendência", analise(d.tendencia.linhas));
+      s.appendChild(el("div", "legenda",
+        "A direção só é afirmada quando a inclinação se distingue de zero. " +
+        "Sem esse teste, qualquer série tem inclinação diferente de zero e " +
+        "todo ruído vira tendência."));
+    }
+
+    const f = el("div", "fonte");
+    f.innerHTML = `<b>De onde vêm os dados.</b> ${esc(d.fonte)}` +
+      (d.notas && d.notas.length
+        ? `<ul>${d.notas.map(n => `<li>${esc(n)}</li>`).join("")}</ul>` : "");
+    p.appendChild(f);
+
+    paineis.appendChild(p);
+  });
+
+  abas.addEventListener("click", (ev) => {
+    const btn = ev.target.closest(".aba");
+    if (!btn) return;
+    [...abas.children].forEach(b => b.setAttribute("aria-selected", String(b === btn)));
+    [...paineis.children].forEach(p =>
+      p.hidden = p.id !== btn.getAttribute("aria-controls"));
+    document.querySelector(".seletor").scrollIntoView({ block: "start" });
+  });
+})();
+</script>

@@ -1,0 +1,13 @@
+# Normaliza fim de linha na entrada, mas preserva o que precisa de CRLF.
+* text=auto
+
+# O atalho do Windows PRECISA de CRLF: com LF o cmd.exe engasga no meio de um
+# bloco `if` e o duplo clique falha com uma mensagem sem sentido.
+*.bat text eol=crlf
+# O do macOS/Linux precisa do contrario, pelo mesmo motivo invertido.
+*.command text eol=lf
+*.sh text eol=lf
+
+# Binarios: nada de conversao.
+*.png binary
+*.parquet binary
