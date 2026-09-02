@@ -92,6 +92,39 @@ async function checarErros(page, onde) {
       const slug = `${di}${ai}-${nome.split(' ')[0]}-${rotulo.replace(/[^A-Za-zÀ-ÿ]/g,'').slice(0,12)}`;
       await page.screenshot({ path: `${OUT}/${slug}.png`, fullPage: true });
 
+      // Na aba de alertas, o botao "Ver esse dia" so aparece quando o dia
+      // escolhido esta limpo -- e era exatamente ali que estourava um
+      // StreamlitWidgetAlreadyInstantiatedError em producao, porque ele
+      // reposiciona o date_input. Percorrer as abas sem clicar nele nao pega
+      // esse erro: o caminho tem de ser exercitado.
+      if (alvo === 'Alertas') {
+        const ver = page.getByRole('button', { name: /Ver esse dia/ });
+        if (await ver.count()) {
+          await ver.first().click({ force: true }).catch(() => {});
+          await calma(page, 2600);
+          await checarErros(page, `${nome} / Alertas / Ver esse dia`);
+          await page.screenshot({ path: `${OUT}/${slug}-verdia.png`, fullPage: true });
+        } else {
+          // Sem o botao na tela, forca um dia limpo mexendo no corte de
+          // relevancia ate a lista esvaziar.
+          const sliders = page.locator('[data-testid="stSlider"]');
+          if (await sliders.count() > 1) {
+            const alvoSlider = sliders.nth(0);
+            const cx = await alvoSlider.boundingBox();
+            if (cx) {
+              await page.mouse.click(cx.x + cx.width - 4, cx.y + cx.height / 2);
+              await calma(page, 2600);
+              const ver2 = page.getByRole('button', { name: /Ver esse dia/ });
+              if (await ver2.count()) {
+                await ver2.first().click({ force: true }).catch(() => {});
+                await calma(page, 2600);
+                await checarErros(page, `${nome} / Alertas / Ver esse dia (dia limpo)`);
+              }
+            }
+          }
+        }
+      }
+
       // Na aba do agente, faz de fato uma pergunta e confere a resposta.
       if (alvo instanceof RegExp) {
         const exemplos = page.locator('button:has-text("?")');
