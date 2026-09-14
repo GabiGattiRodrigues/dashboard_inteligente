@@ -181,6 +181,12 @@ def render_capa() -> None:
     cols = st.columns(len(listar()), gap="small")
     for col, dom in zip(cols, listar()):
         with col:
+            # Os selos entram numa string só. Se o selo de obra virasse uma
+            # linha própria, o domínio sem obra deixaria uma linha em branco no
+            # meio do HTML, e o markdown do Streamlit trataria o que vem depois
+            # como bloco de código -- os </div> apareceriam escritos na tela.
+            selos = selo(dom.simulado) + (
+                selo_construcao() if dom.chave in EM_CONSTRUCAO else "")
             st.markdown(
                 f"""<div class="vulc-dom">
                   <h3>{dom.nome}</h3>
@@ -196,9 +202,7 @@ def render_capa() -> None:
                                   color:#0f1b2d">{dom.agente_nome}</div>
                     </div>
                   </div>
-                  <div style="margin-top:12px">{selo(dom.simulado)}
-                    {selo_construcao() if dom.chave in EM_CONSTRUCAO else ''}
-                  </div>
+                  <div style="margin-top:12px">{selos}</div>
                 </div>""",
                 unsafe_allow_html=True,
             )
