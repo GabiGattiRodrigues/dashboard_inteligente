@@ -354,8 +354,20 @@ def interpretar_deterministico(pergunta: str, ctx: Contexto) -> dict[str, Any]:
         plano["intencao"] = "funil"
         return plano
 
-    if _contem(t, ["alerta", "alertas", "anomalia", "fora do padrao",
-                            "estranho", "algo errado"]):
+    # Em Compliance, "alerta" é também o nome da métrica principal: "por que
+    # os alertas subiram?" é causa raiz do volume de alertas, não a lista do
+    # que fugiu do padrão hoje. Nesse domínio a lista só vem com um gatilho
+    # que não deixa dúvida.
+    alerta_e_metrica = any("alerta" in _normalizar(x)
+                           for xs in _sinonimos_metrica(dom).values() for x in xs)
+    gatilhos_alerta = (["tem alerta", "algum alerta", "alertas do dia",
+                        "alerta hoje", "alertas hoje", "alerta no dia",
+                        "anomalia", "fora do padrao", "estranho", "algo errado",
+                        "fugiu do padrao"]
+                       if alerta_e_metrica else
+                       ["alerta", "alertas", "anomalia", "fora do padrao",
+                        "estranho", "algo errado"])
+    if _contem(t, gatilhos_alerta):
         plano["intencao"] = "alertas"
         return plano
 
@@ -984,12 +996,36 @@ def executar(
 # Ponto de entrada
 # --------------------------------------------------------------------------- #
 
+def _extensao(dom: Dominio):
+    """O módulo de intenções próprias do domínio, quando ele declara um."""
+    if not getattr(dom, "extensao", ""):
+        return None
+    import importlib
+    return importlib.import_module(dom.extensao)
+
+
 def perguntar(
     con: duckdb.DuckDBPyConnection, pergunta: str, ctx: Contexto,
     usar_llm: bool = True,
 ) -> Resposta:
     motor = "deterministico"
     plano = None
+
+    # Intenções do domínio vêm antes do planejador genérico. Elas têm marcador
+    # inequívoco (um código de cliente, "fila", "R02"), e o planejador, que só
+    # conhece métricas agregadas, trocaria o cliente nomeado por um total.
+    ext = _extensao(ctx.dominio)
+    plano_ext = ext.interpretar(pergunta, ctx) if ext else None
+    if plano_ext is not None:
+        plano_ext.setdefault("pergunta", pergunta)
+        plano_ext.setdefault("metrica", ctx.dominio.metricas_painel[0])
+        plano_ext.setdefault("preset", ctx.preset_comparacao)
+        fatos, tabela, grafico, linhas = ext.executar(con, plano_ext, ctx)
+        texto = narrar_com_llm(pergunta, fatos, ctx) if (
+            usar_llm and chave_api()) else None
+        return Resposta(texto=texto or "\n\n".join(linhas), plano=plano_ext,
+                        fatos=fatos, tabela=tabela, grafico=grafico,
+                        motor="llm" if texto else "deterministico")
     if usar_llm:
         plano = interpretar_com_llm(pergunta, ctx)
         if plano is not None:

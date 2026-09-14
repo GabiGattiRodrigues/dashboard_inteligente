@@ -249,6 +249,11 @@ def _funil(con, dom, ini, fim):
 def montar() -> dict:
     fora = {"dominios": [], "gerado_em": date.today().isoformat()}
     for dom in listar():
+        # A amostra estática cobre os domínios com cenário roteirizado. O de
+        # Compliance vive das abas interativas (fila, dossiê, calibração), que
+        # não cabem num retrato de página única.
+        if dom.chave not in CENARIO:
+            continue
         cen = CENARIO[dom.chave]
         con = conectar(dom)
         dmin, dmax = periodo_disponivel(con)

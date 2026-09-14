@@ -15,7 +15,7 @@ cd "$(dirname "$0")"
 
 echo
 echo "  =========================================================="
-echo "    Analytics com agente - três painéis, um motor"
+echo "    Analytics com agente - quatro painéis, um motor"
 echo "  =========================================================="
 echo
 
@@ -46,7 +46,16 @@ else
 fi
 
 # --- 3. Dependências --------------------------------------------------
-if [ ! -f ".venv/instalado.txt" ]; then
+# O arquivo-marca guarda a assinatura do requirements.txt, e não um "pronto"
+# genérico: senão um requirements novo nunca chegaria a um .venv antigo, e o
+# painel quebraria só na máquina de quem já tinha rodado antes.
+MARCA=".venv/instalado.txt"
+REQ="$(ls -l requirements.txt | awk '{print $5, $6, $7, $8}')"
+JA="$( [ -f "$MARCA" ] && cat "$MARCA" || echo '' )"
+if [ "$JA" != "$REQ" ]; then
+  if [ -n "$JA" ]; then
+    echo "  [ 3/4 ]  O requirements.txt mudou; atualizando as bibliotecas."
+  fi
   echo "  [ 3/4 ]  Instalando as bibliotecas. Leva alguns minutos na"
   echo "           primeira vez; nas próximas é instantâneo."
   echo "           (o progresso aparece abaixo — é normal demorar)"
@@ -68,7 +77,7 @@ if [ ! -f ".venv/instalado.txt" ]; then
     read -r -p "  Enter para fechar. " _
     exit 1
   fi
-  echo pronto > ".venv/instalado.txt"
+  echo "$REQ" > "$MARCA"
   echo
   echo "           Bibliotecas instaladas."
 else
@@ -90,6 +99,11 @@ fi
 [ -f "data/fato_credito.parquet" ] || {
   echo "  [ ! ]  Gerando a carteira de crédito simulada..."
   "$VPY" scripts/build_credito.py
+}
+
+[ -f "data/fato_pld.parquet" ] || {
+  echo "  [ ! ]  Gerando a operação de PLD simulada..."
+  "$VPY" scripts/build_pld.py
 }
 
 # Evita o Streamlit parar pedindo e-mail na primeira execução.

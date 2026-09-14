@@ -8,13 +8,14 @@ inclui-lo na lista abaixo. Nenhum motor precisa ser tocado.
 from ..semantica import Dominio
 from .credito import DOMINIO as CREDITO
 from .marketing import DOMINIO as MARKETING
+from .pld import DOMINIO as PLD
 from .produto import DOMINIO as PRODUTO
 
 DOMINIOS: dict[str, Dominio] = {
-    d.chave: d for d in (MARKETING, CREDITO, PRODUTO)
+    d.chave: d for d in (MARKETING, CREDITO, PRODUTO, PLD)
 }
 
-ORDEM = ["marketing", "credito", "produto"]
+ORDEM = ["marketing", "credito", "produto", "pld"]
 
 
 def obter(chave: str) -> Dominio:

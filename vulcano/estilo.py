@@ -59,6 +59,13 @@ CSS = f"""
     font-size: 0.74rem; font-weight: 640; letter-spacing: 0.02em;
   }}
 
+  .vulc-wip {{
+    display: inline-block; background: #fdf3e3; color: #8a5a12;
+    border: 1px solid #e8cf9f; border-radius: 999px; padding: 3px 11px;
+    font-size: 0.74rem; font-weight: 640; letter-spacing: 0.02em;
+    margin-left: 6px;
+  }}
+
   .vulc-alerta {{
     border: 1px solid {GRADE}; border-left-width: 4px; border-radius: 0 10px 10px 0;
     background: {SURFACE}; padding: 12px 16px; margin-bottom: 10px;
@@ -89,9 +96,10 @@ CSS = f"""
     padding: 20px 22px; height: 100%;
   }}
   .vulc-dom h3 {{ margin: 0 0 4px 0; font-size: 1.16rem; }}
-  .vulc-dom .sub {{ color: {TINTA_MUDA}; font-size: 0.82rem; margin-bottom: 10px; }}
+  .vulc-dom .sub {{ color: {TINTA_MUDA}; font-size: 0.82rem; margin-bottom: 10px;
+                    min-height: 2.6em; }}
   .vulc-dom .txt {{ color: {TINTA_2}; font-size: 0.88rem; line-height: 1.55;
-                    min-height: 92px; }}
+                    min-height: 132px; }}
 
   .vulc-arq {{
     border: 1px solid {GRADE}; border-radius: 10px; background: {SURFACE};
@@ -338,6 +346,14 @@ def cabecalho_comparacao(comp) -> str:
 
 def nota(texto: str) -> str:
     return f'<div class="vulc-nota">{texto}</div>'
+
+
+def selo_construcao() -> str:
+    """Um domínio publicado antes de estar fechado avisa isso na cara.
+
+    Não é modéstia: quem abre um painel de portfólio julga o que vê, e um
+    domínio em ajuste sem aviso passa por descuido em vez de obra em curso."""
+    return '<span class="vulc-wip">EM CONSTRUÇÃO</span>'
 
 
 def selo(simulado: bool) -> str:

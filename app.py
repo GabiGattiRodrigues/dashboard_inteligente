@@ -1,5 +1,5 @@
 """
-Analytics com agente — três domínios, um motor.
+Analytics com agente — quatro domínios, um motor.
 
 Ponto de entrada do Streamlit. Este arquivo cuida SÓ da tela: leitura de
 estado, layout e chamada dos motores. Nenhuma conta acontece aqui — toda
@@ -33,7 +33,7 @@ from vulcano.dados import (Filtros, agregar, comparar, conectar,
 from vulcano.dominios import listar, obter
 from vulcano.estilo import (CSS, avatar_uri, cabecalho_comparacao,
                             cartao_alerta, cartao_metrica, descrever_janela,
-                            md, nota, rosto, selo)
+                            md, nota, rosto, selo, selo_construcao)
 from vulcano.formatacao import julgar, numero, pct
 from vulcano.graficos import JULGA_BOM, JULGA_RUIM, TINTA_MUDA
 from vulcano.periodos import (NIVEIS_COMPARACAO, PRESETS, contra_dia,
@@ -41,11 +41,19 @@ from vulcano.periodos import (NIVEIS_COMPARACAO, PRESETS, contra_dia,
                               montar_preset)
 from vulcano.semantica import Dominio
 
+import telas_pld
+
 # Nome da plataforma. PROVISÓRIO — cada domínio já tem seu próprio agente, com
 # nome e rosto declarados no arquivo do domínio (vulcano/dominios/*.py). Falta
 # só o nome do conjunto; trocar aqui muda a capa inteira.
 MARCA = "Analytics com agente"
 MARCA_ROSTO = "◆"
+
+# Domínios ainda em ajuste. Ficam publicados e navegáveis, com selo na capa e
+# aviso no topo do painel: esconder até "ficar pronto" é o que faz um projeto
+# de portfólio nunca sair do lugar. Tirar daqui é o passo único para dizer que
+# terminou.
+EM_CONSTRUCAO = {"pld"}
 
 st.set_page_config(page_title=MARCA, page_icon="📊", layout="wide")
 st.markdown(CSS, unsafe_allow_html=True)
@@ -133,16 +141,31 @@ DECISOES = [
      "imatura com zero é o que faz um painel mostrar risco caindo justamente "
      "quando ele ainda não teve tempo de acontecer. A censura é por safra "
      "inteira: a safra só entra quando o seu último contrato completou o MOB."),
+    ("Por que falso positivo só conta alerta maduro",
+     "Em PLD é o mesmo problema da safra com outra roupa: num alerta de ontem, "
+     "só os casos fáceis já foram decididos — e caso fácil costuma ser "
+     "descarte. Falso positivo, conversão e tempo de análise só contam alertas "
+     "com 45 dias ou mais, o prazo máximo de análise da Circular 3.978. O que "
+     "passou disso sem decisão não some: vira 'fora do prazo'."),
+    ("Por que a fila de PLD tem prioridade explicável, e não modelo",
+     "A analista precisa defender a ordem da fila na frente do auditor, e 'o "
+     "modelo deu 0,83' não se defende. A prioridade é uma soma de fatores "
+     "nomeados — gravidade da regra, valor, regras distintas no mesmo cliente, "
+     "histórico, risco — e a conta aparece no dossiê. O prazo anda em coluna "
+     "separada, para o caso médio que vence amanhã não sumir. E a decisão de "
+     "comunicar nunca é do agente."),
 ]
 
 
 def render_capa() -> None:
     agentes = " · ".join(d.agente_nome for d in listar())
+    quantos = {3: "Três", 4: "Quatro", 5: "Cinco"}.get(len(listar()),
+                                                     str(len(listar())))
     st.markdown(
         f"""<div class="vulc-hero">
         <h1>{MARCA_ROSTO} {MARCA}</h1>
         <div class="sub">
-          Três painéis, um motor: gráficos, comparação de períodos, causa raiz
+          {quantos} painéis, um motor: gráficos, comparação de períodos, causa raiz
           com cascata, alertas que já vêm com o provável motivo, e um agente que
           responde em linguagem natural — do analista júnior ao executivo.
           <br><br>
@@ -155,7 +178,7 @@ def render_capa() -> None:
     )
 
     st.markdown("#### Escolha um domínio")
-    cols = st.columns(3, gap="medium")
+    cols = st.columns(len(listar()), gap="small")
     for col, dom in zip(cols, listar()):
         with col:
             st.markdown(
@@ -173,12 +196,16 @@ def render_capa() -> None:
                                   color:#0f1b2d">{dom.agente_nome}</div>
                     </div>
                   </div>
-                  <div style="margin-top:12px">{selo(dom.simulado)}</div>
+                  <div style="margin-top:12px">{selo(dom.simulado)}
+                    {selo_construcao() if dom.chave in EM_CONSTRUCAO else ''}
+                  </div>
                 </div>""",
                 unsafe_allow_html=True,
             )
             st.write("")
-            if st.button(f"Abrir {dom.nome}", key=f"btn_{dom.chave}",
+            rotulo = (f"Abrir {dom.nome} (em construção)"
+                      if dom.chave in EM_CONSTRUCAO else f"Abrir {dom.nome}")
+            if st.button(rotulo, key=f"btn_{dom.chave}",
                          use_container_width=True, type="primary"):
                 _ir_para(dom.chave)
 
@@ -200,7 +227,13 @@ O primeiro destes agentes, o Vulcano, nasceu na Petlove para fechar essa fila:
 além dos gráficos, ele decompõe a variação, dispara alerta sozinho quando algo
 foge do padrão e responde pergunta em linguagem natural, no mesmo lugar. Esta
 versão pública reconstrói o produto sobre dados abertos e o estende a outros
-dois domínios, para mostrar a arquitetura e as decisões técnicas por trás dele.
+três domínios, para mostrar a arquitetura e as decisões técnicas por trás dele.
+
+O quarto, **Compliance e PLD**, leva o mesmo motor para onde a pergunta muda
+de natureza: além de "quantos alertas e quanto vira falso positivo", a analista
+precisa saber **quem**, especificamente, se enquadra em qual situação da Carta
+Circular 4.001 e em quanto tempo vence o prazo de análise. A Ravena responde
+as duas — o agregado pelo motor, o cliente a cliente pela fila e pelo dossiê.
         """
     )
 
@@ -282,8 +315,12 @@ def barra_lateral(dom: Dominio, dmin: date, dmax: date):
 
         st.markdown("#### Comparar com")
         chaves = list(PRESETS.keys())
+        # Em Compliance o mês corrente ainda não tem taxa de decisão (alerta
+        # recente não amadureceu), e abrir o painel com quatro cartões vazios
+        # é a pior primeira impressão. 90 dias alcança alertas maduros.
+        padrao = "ultimos_90" if dom.chave == "pld" else "mes_fechado"
         preset = st.selectbox(
-            "Comparação", chaves, index=chaves.index("mes_fechado"),
+            "Comparação", chaves, index=chaves.index(padrao),
             format_func=lambda k: PRESETS[k], key=f"preset_{dom.chave}",
             label_visibility="collapsed",
         )
@@ -377,8 +414,25 @@ def aba_alertas(con, dom, fim, filtros):
 
     c1, c2, c3 = st.columns([2, 1.5, 1.5])
     with c1:
-        ref = st.date_input("Dia analisado", value=fim, key=f"al_d_{dom.chave}",
-                            format="DD/MM/YYYY")
+        # O dia analisado NAO e guardado na chave do proprio widget.
+        #
+        # O botao "Ver esse dia", mais abaixo, precisa mudar essa data. Escrever
+        # em `st.session_state["al_d_..."]` depois que o date_input ja foi
+        # criado nesta execucao levanta StreamlitWidgetAlreadyInstantiatedError
+        # -- e como o botao so aparece nos dias sem alerta, o erro nao acontece
+        # em teste nenhum que nao clique exatamente ali.
+        #
+        # Entao o valor mora numa chave nossa (`al_dia_*`) e o widget ganha um
+        # sufixo que muda quando queremos forcar outra data. Chave nova = widget
+        # novo = o `value` volta a valer, que e o unico jeito de reposicionar um
+        # date_input sem escrever na chave dele.
+        chave_dia = f"al_dia_{dom.chave}"
+        chave_geracao = f"al_ger_{dom.chave}"
+        st.session_state.setdefault(chave_geracao, 0)
+        padrao = st.session_state.get(chave_dia) or fim
+        ref = st.date_input(
+            "Dia analisado", value=padrao, format="DD/MM/YYYY",
+            key=f"al_d_{dom.chave}_{st.session_state[chave_geracao]}")
         ref = ref if isinstance(ref, date) else fim
     with c2:
         z = st.slider("Quão estranho precisa ser", 2.0, 5.0, 3.0, 0.25,
@@ -408,7 +462,8 @@ def aba_alertas(con, dom, fim, filtros):
             with c2:
                 if st.button("Ver esse dia", key=f"al_ir_{dom.chave}",
                              use_container_width=True):
-                    st.session_state[f"al_d_{dom.chave}"] = anterior
+                    st.session_state[chave_dia] = anterior
+                    st.session_state[chave_geracao] += 1
                     st.rerun()
     else:
         # Os cartões ocupam a largura toda: cada um carrega o motivo provável,
@@ -418,6 +473,12 @@ def aba_alertas(con, dom, fim, filtros):
             st.markdown(cartao_alerta(a.severidade, a.tipo, a.texto,
                                       a.acao, motivo),
                         unsafe_allow_html=True)
+
+    # Em Compliance, o alerta da operação ("o volume da R02 subiu") não serve
+    # sozinho: a pergunta seguinte é sempre "de quem?". Os clientes do dia
+    # entram logo abaixo dos cartões, com o caminho para o dossiê.
+    if dom.chave == "pld":
+        telas_pld.bloco_alertas(con, dom, ref, filtros)
 
     # A explicação vem DEPOIS dos alertas: quem abre a aba quer o que aconteceu,
     # não a metodologia. Quem quiser entender os cortes rola até aqui.
@@ -629,7 +690,7 @@ def _series_da_metrica(con, dom, mk, inicio, fim, filtros, quebra):
     return s, (d.coluna, segmentos)
 
 
-def aba_visao_geral(con, dom, inicio, fim, comp, filtros, quebra):
+def aba_visao_geral(con, dom, inicio, fim, comp, filtros, quebra, dmax=None):
     st.markdown(cabecalho_comparacao(comp), unsafe_allow_html=True)
     rot_ant, _ = descrever_janela(comp.anterior) if not comp.composta else \
         (comp.rotulo_base(), "")
@@ -674,6 +735,9 @@ def aba_visao_geral(con, dom, inicio, fim, comp, filtros, quebra):
         st.caption("Cada barra é o número de pedidos que alcançou aquela etapa. "
                    "A queda entre barras é onde a jornada trava.")
 
+    if dom.chave == "pld" and dmax is not None:
+        telas_pld.bloco_visao_geral(con, dom, dmax, fim, filtros)
+
     st.markdown("---")
     if quebra:
         st.markdown(f"##### As métricas por dia, quebradas por "
@@ -703,6 +767,13 @@ def aba_visao_geral(con, dom, inicio, fim, comp, filtros, quebra):
     st.caption("A quebra dos gráficos é escolhida na barra lateral e vale para "
                "todos eles de uma vez. O teto de 5 segmentos não é estético: a "
                "paleta só garante separação para daltonismo até esse ponto.")
+
+    # Em Compliance, indicador acompanhado não é só o que virou alerta: o que
+    # está em investigação e o comportamento do indicador ANTES do corte são
+    # parte do monitoramento.
+    if dom.chave == "pld" and dmax is not None:
+        telas_pld.bloco_investigacao(con, dom, dmax, fim, filtros)
+        telas_pld.bloco_indicadores(con, dom)
 
 
 # --------------------------------------------------------------------------- #
@@ -868,6 +939,12 @@ def aba_causa_raiz(con, dom, dmin, dmax, fim, filtros):
         f"Variação total: {numero(dec.delta, m, sinal=True)} · "
         f"Resíduo: {numero(dec.residuo, m, sinal=True)}"))
 
+    # Em Compliance falta uma decomposição que nenhuma dimensão dá: o volume
+    # de alertas subiu porque mais gente se comportou assim, ou porque a régua
+    # passou a pegar mais? As duas pedem ações opostas.
+    if dom.chave == "pld":
+        telas_pld.bloco_causa_raiz(con, dom)
+
 
 # --------------------------------------------------------------------------- #
 # Dashboard
@@ -886,28 +963,50 @@ def render_dashboard(chave: str) -> None:
         st.caption(dom.subtitulo)
     with dir_:
         st.markdown(f"<div style='text-align:right;padding-top:18px'>"
-                    f"{selo(dom.simulado)}</div>", unsafe_allow_html=True)
+                    f"{selo(dom.simulado)}"
+                    f"{selo_construcao() if dom.chave in EM_CONSTRUCAO else ''}"
+                    f"</div>", unsafe_allow_html=True)
 
+    if dom.chave in EM_CONSTRUCAO:
+        st.markdown(nota(
+            "<b>Domínio em construção.</b> As telas já funcionam ponta a ponta "
+            "— a fila, o dossiê, a calibração e o agente —, mas os textos e os "
+            "gráficos ainda estão em ajuste, e os agentes deste domínio ainda "
+            "não têm rosto. Fica publicado assim de propósito: prefiro mostrar "
+            "em obra a esconder até ficar perfeito."), unsafe_allow_html=True)
     if dom.simulado:
         st.markdown(nota(f"<b>Este domínio usa dado simulado.</b> {dom.fonte}"),
                     unsafe_allow_html=True)
 
-    abas = st.tabs(["Alertas",
-                    f"Pergunte {dom.agente_ao} {dom.agente_nome}",
-                    "Visão geral",
-                    "Comparação de períodos", "Causa raiz", "Sobre os dados"])
+    # Compliance ganha duas abas que nenhum outro domínio tem. A fila entra
+    # logo depois do agente: em PLD a pergunta da manhã não é "quanto", é
+    # "quem" -- e ela precisa estar à mão, não no fim da barra de abas.
+    nomes = ["Alertas", f"Pergunte {dom.agente_ao} {dom.agente_nome}"]
+    if dom.chave == "pld":
+        nomes += ["Clientes em atenção"]
+    nomes += ["Visão geral"]
+    if dom.chave == "pld":
+        nomes += ["Regras e calibração"]
+    nomes += ["Comparação de períodos", "Causa raiz", "Sobre os dados"]
+    abas = dict(zip(nomes, st.tabs(nomes)))
 
-    with abas[0]:
+    with abas["Alertas"]:
         aba_alertas(con, dom, fim, filtros)
-    with abas[1]:
+    with abas[nomes[1]]:
         aba_agente(con, dom, inicio, fim, preset, filtros, quebra)
-    with abas[2]:
-        aba_visao_geral(con, dom, inicio, fim, comp, filtros, quebra)
-    with abas[3]:
+    if dom.chave == "pld":
+        with abas["Clientes em atenção"]:
+            telas_pld.aba_clientes(con, dom, dmax, fim, filtros)
+    with abas["Visão geral"]:
+        aba_visao_geral(con, dom, inicio, fim, comp, filtros, quebra, dmax)
+    if dom.chave == "pld":
+        with abas["Regras e calibração"]:
+            telas_pld.aba_regras(con, dom, inicio, fim, filtros)
+    with abas["Comparação de períodos"]:
         aba_comparacao(con, dom, fim, filtros)
-    with abas[4]:
+    with abas["Causa raiz"]:
         aba_causa_raiz(con, dom, dmin, dmax, fim, filtros)
-    with abas[5]:
+    with abas["Sobre os dados"]:
         st.markdown("#### Procedência")
         st.markdown(dom.fonte)
         if dom.notas:
@@ -931,6 +1030,8 @@ def render_dashboard(chave: str) -> None:
             hide_index=True)
         st.caption(f"Dados de {dmin.strftime('%d/%m/%Y')} a "
                    f"{dmax.strftime('%d/%m/%Y')}.")
+        if dom.chave == "pld":
+            telas_pld.sobre_pld()
 
 
 # --------------------------------------------------------------------------- #

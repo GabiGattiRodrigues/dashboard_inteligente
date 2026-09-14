@@ -142,6 +142,13 @@ class Dominio:
     # conversa e "<prefixo>-alerta.png" na aba de alertas. Vazio = so emoji.
     agente_imagem: str = ""
 
+    # Módulo com o que só existe neste domínio: intenções próprias do agente
+    # e abas próprias da tela. Vazio = domínio que o motor genérico cobre
+    # inteiro. Existe porque PLD tem uma pergunta que nenhum outro domínio
+    # tem -- "quem, especificamente, eu olho primeiro?" -- e ela não cabe
+    # numa métrica agregada.
+    extensao: str = ""
+
     # -- consultas ao catalogo --------------------------------------------- #
 
     # -- concordancia com o nome do agente --------------------------------- #

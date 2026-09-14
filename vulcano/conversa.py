@@ -162,6 +162,37 @@ VOZES: dict[str, Voz] = {
                  "da jornada, eu levo você até lá."),
         admissao=("Não entendi essa. Prefiro dizer do que responder por cima."),
     ),
+    "ravena": Voz(
+        tom=("Corva atenta e investigativa. Fala baixo e com precisão: "
+             "primeiro o fato observado, depois o enquadramento na norma, "
+             "depois o próximo passo. Nunca acusa ninguém — descreve indício, "
+             "não culpa — e lembra, sem sermão, que quem decide comunicar é a "
+             "analista. Séria sem ser fria: gosta de puxar o fio e de mostrar "
+             "onde duas pistas se encontram."),
+        saudacao=(
+            "Oi. Já passei pela fila de {dominio} — tem cliente esperando "
+            "por você.",
+            "Olá! Estou com {dominio} aberto, no período da barra lateral. "
+            "Por onde quer começar: pela fila ou pelos números?",
+            "Oi. Os alertas de hoje já estão separados. Pode perguntar.",
+        ),
+        agradecimento=("Imagina. Qualquer fio solto, me chama.",
+                       "De nada. Deixo o dossiê anotado aqui.",
+                       "Por nada — é para isso que eu fico de olho."),
+        despedida=("Até. Sigo olhando os lotes do ciclo.",
+                   "Tchau! Se alguma regra disparar fora do comum, eu anoto.",
+                   "Até mais. A fila fica guardada."),
+        como_esta=("Atenta, como sempre. E você?",
+                   "Bem — nenhum prazo vencendo hoje sem aviso. E você?"),
+        elogio=("Que bom.",
+                "Obrigada. Se quiser, eu abro o dossiê de algum cliente."),
+        convite=("Pergunte pelo cliente (T-, L- ou E- e o número), pela fila, "
+                 "por uma regra ou pelos números da operação. Se a pergunta "
+                 "for sobre a norma, eu cito o artigo."),
+        admissao=("Essa eu não entendi. Em PLD, prefiro admitir do que "
+                  "responder por cima — resposta errada aqui vira decisão "
+                  "sobre alguém."),
+    ),
 }
 
 # Voz de reserva: dominio novo que ainda nao declarou personalidade nao pode
@@ -234,6 +265,12 @@ FRACOS: dict[str, list[str]] = {
     "Por que a base de comparação muda a conclusão": ["d-7", "d 7", "d-1"],
     "Filtros e quebra": ["filtro", "filtros", "quebra", "barra lateral"],
     "Como um alerta nasce": ["alerta"],
+    "Comunicação ao Coaf": ["coaf", "comunicacao", "comunicar"],
+    "Falso positivo e alerta maduro": ["falso positivo", "descarte"],
+    "Como a prioridade da fila é calculada": ["prioridade", "fila"],
+    "PEP": ["pep"],
+    "O monitoramento de PLD/FT": ["pld", "compliance"],
+    "Como calibrar uma regra": ["parametro", "corte"],
 }
 
 CONCEITOS: list[tuple[list[str], str, str]] = [
@@ -359,8 +396,11 @@ CONCEITOS: list[tuple[list[str], str, str]] = [
      "Crédito roda sobre uma carteira **simulada**, gerada com estrutura "
      "declarada (curva de aprovação por score, maturação da inadimplência, "
      "choque de política, censura à direita), porque não existe base pública "
-     "de crédito com data de originação e marcação de inadimplência. A "
-     "modelagem é real; o dado não é — e a tela diz isso o tempo todo."),
+     "de crédito com data de originação e marcação de inadimplência. "
+     "Compliance e PLD também é **simulado**: nenhuma instituição publica os "
+     "próprios alertas, então a operação foi gerada com regras reais, "
+     "tipologias plantadas e clientes fictícios. A modelagem é real; o dado "
+     "não é — e a tela diz isso o tempo todo."),
 
     (["d-7", "d 7", "d-1", "base de comparacao", "por que d-7", "mesmos dias",
       "media dos 3", "quatro niveis", "qual comparacao"],
@@ -408,6 +448,168 @@ CONCEITOS: list[tuple[list[str], str, str]] = [
      "O segundo existe porque o primeiro sozinho tem um ponto cego: métrica que "
      "piora devagar e sempre nunca fica 'estranha', porque o normal foi "
      "descendo junto."),
+]
+
+
+CONCEITOS += [
+    (["pld", "pld/ft", "lavagem de dinheiro", "monitoramento transacional",
+      "compliance"],
+     "O monitoramento de PLD/FT",
+     "PLD/FT é prevenção à lavagem de dinheiro e ao financiamento do "
+     "terrorismo. Para uma instituição de pagamento, a Circular 3.978 do Banco "
+     "Central pede um ciclo com quatro passos: **monitorar** as operações, "
+     "**selecionar** as que têm indício, **analisar** cada uma e **comunicar** "
+     "ao Coaf o que a análise sustentar (arts. 38 a 48).\n\n"
+     "Neste painel as regras fazem a seleção, a fila mostra a análise em "
+     "andamento, e cada cliente em atenção vem com o trecho da Carta Circular "
+     "4.001 em que ele se enquadra. Tudo sobre base simulada."),
+
+    (["3978", "3.978", "circular 3978", "circular 3.978"],
+     "O que a Circular 3.978 pede",
+     "É a norma do BCB que organiza o programa de PLD/FT. Os pontos que este "
+     "painel toca:\n\n"
+     "- **art. 10** — avaliação interna de risco: é ela que justifica os "
+     "cortes das regras;\n"
+     "- **art. 20** — classificação de risco do cliente;\n"
+     "- **art. 27** — atenção especial a PEP;\n"
+     "- **arts. 38 e 39** — monitoramento e seleção, em até 45 dias;\n"
+     "- **art. 43** — análise em até 45 dias da seleção (§ 1º), formalizada "
+     "em dossiê mesmo sem comunicação (§ 2º);\n"
+     "- **art. 48, § 2º** — comunicação ao Coaf até o dia útil seguinte ao da "
+     "decisão.\n\n"
+     "Os textos no painel são resumos; a referência é o normativo publicado "
+     "pelo BCB."),
+
+    (["4001", "4.001", "carta circular 4001", "carta circular 4.001",
+      "enquadramento", "inciso", "alinea"],
+     "O que é a Carta Circular 4.001",
+     "É uma lista **exemplificativa** de operações e situações que podem "
+     "indicar suspeita, organizada em incisos: operações em espécie, "
+     "identificação de clientes, movimentação de contas, PEP, regiões de "
+     "fronteira e outros.\n\n"
+     "Ela não é uma lista de regras prontas. Diz \"isto é indício\"; o "
+     "corte, a janela e a combinação de sinais são decisão da instituição. "
+     "Cada regra deste painel aponta para o inciso e a alínea que traduz — a "
+     "R01, por exemplo, é o inciso IV, alínea a: movimentação incompatível "
+     "com a renda ou a capacidade financeira."),
+
+    (["prazo de 45", "45 dias", "prazo de analise", "prazo da analise",
+      "art. 43", "artigo 43", "fora do prazo", "vencido"],
+     "O prazo de 45 dias",
+     "São dois prazos, e cada um conta de um jeito. A **análise** vai até 45 "
+     "dias **corridos** contados da data da seleção (Circular 3.978, art. 43, "
+     "§ 1º). A **comunicação** ao Coaf, quando decidida, vai até o **dia "
+     "útil** seguinte ao da decisão (art. 48, § 2º) — decisão na sexta vai na "
+     "segunda.\n\n"
+     "Por isso a fila mostra prioridade e prazo em colunas separadas: o caso "
+     "de gravidade média que vence amanhã não pode sumir atrás do grave que "
+     "ainda tem um mês. Alerta com mais de 45 dias sem decisão aparece como "
+     "**fora do prazo** — é descumprimento, não desempenho ruim."),
+
+    (["comunicacao ao coaf", "comunicar ao coaf", "como comunica", "coaf",
+      "siscoaf", "d+1", "dia util seguinte", "sigilo", "art. 48"],
+     "Comunicação ao Coaf",
+     "Quando a análise sustenta a suspeita, a instituição comunica a operação "
+     "ao Coaf até o dia útil seguinte ao da decisão (Circular 3.978, art. 48, "
+     "§ 2º), **sem dar ciência ao cliente** (Lei 9.613/1998, art. 11).\n\n"
+     "Comunicar não é acusar: é repassar um indício para quem tem competência "
+     "de investigar. E não comunicar também deixa rastro — a análise fica "
+     "formalizada em dossiê de qualquer jeito (art. 43, § 2º). Aqui a decisão "
+     "é sempre da analista; eu organizo os fatos."),
+
+    (["falso positivo", "alerta maduro", "alertas maduros", "maduro",
+      "censura"],
+     "Falso positivo e alerta maduro",
+     "Falso positivo é o alerta que a análise descartou. O detalhe que muda a "
+     "conta é **quando** medir: num alerta de ontem, só os casos fáceis já "
+     "foram decididos — e caso fácil costuma ser descarte. A taxa dos alertas "
+     "recentes sai distorcida pela ordem em que a fila anda.\n\n"
+     "Por isso falso positivo, conversão em comunicação e tempo de análise só "
+     "contam alertas com **45 dias ou mais**, o prazo máximo de análise. É o "
+     "mesmo raciocínio da safra de crédito: o dado que ainda não teve tempo "
+     "de acontecer aparece vazio, nunca como zero."),
+
+    (["dossie", "art. 43, § 2", "formalizar a analise", "parecer"],
+     "O dossiê",
+     "A Circular 3.978 pede que toda análise seja formalizada em dossiê, "
+     "comunicando ou não (art. 43, § 2º). O rascunho que eu monto traz "
+     "identificação, o que disparou com a evidência em número, o "
+     "enquadramento na 4.001, o histórico, as contrapartes — inclusive as que "
+     "aparecem em outros clientes em atenção —, as verificações sugeridas e "
+     "os prazos.\n\n"
+     "O que ele **não** traz é a decisão. A leitura final descreve se os "
+     "sinais convergem ou são isolados; concluir é trabalho da analista."),
+
+    (["prioridade", "score de prioridade", "como a fila", "ordem da fila",
+      "por que esse cliente"],
+     "Como a prioridade da fila é calculada",
+     "É uma soma de pontos com fatores nomeados, e a tela mostra a conta: "
+     "gravidade da regra mais grave aberta (até 35), valor envolvido em escala "
+     "log (até 25), regras distintas abertas no mesmo cliente (até 20), risco "
+     "cadastral (até 10), já comunicado antes (10), PEP (5) e fronteira (5), "
+     "com teto em 100.\n\n"
+     "Não é modelo de propósito: a analista precisa defender a ordem da fila "
+     "na frente do auditor, e \"o modelo deu 0,83\" não se defende. Dois "
+     "sinais independentes no mesmo cliente valem mais do que um forte "
+     "sozinho — é a convergência que separa indício de coincidência."),
+
+    (["conta de passagem", "laranja", "laranjas", "fracionamento", "smurfing",
+      "troca de beneficio", "tipologia", "tipologias"],
+     "As tipologias que o monitoramento procura",
+     "Três desenhos aparecem na base simulada, e cada um deixa rastro em mais "
+     "de uma regra:\n\n"
+     "- **conta de passagem** — dinheiro de muitas origens que sai no mesmo "
+     "dia para os mesmos destinos (R02), em conta aberta em lote no mesmo "
+     "celular (R08) e muito acima da renda (R01);\n"
+     "- **troca de benefício** — empresa recém-cadastrada que carrega saldo "
+     "demais por colaborador (R07) e mercearia que recebe como supermercado, "
+     "de madrugada (R05 e R06);\n"
+     "- **fracionamento** — transferências repetidas logo abaixo do limite "
+     "(R03).\n\n"
+     "É por isso que a prioridade premia regras distintas abertas no mesmo "
+     "cliente."),
+
+    (["pep", "pessoa exposta politicamente", "pessoas expostas"],
+     "PEP",
+     "Pessoa exposta politicamente: quem exerce ou exerceu cargo público "
+     "relevante, e familiares e estreitos colaboradores. A Circular 3.978 pede "
+     "atenção especial à relação com PEP (art. 27), e a 4.001 cita a "
+     "movimentação habitual de ou para PEP sem fundamentação como indício "
+     "(inciso IV, alínea s).\n\n"
+     "Ser PEP não é suspeita. A R09 garante que a movimentação relevante passe "
+     "por olho humano todo mês, e a maior parte termina em monitoramento "
+     "reforçado."),
+
+    (["calibracao", "calibrar", "modo sombra", "corte da regra",
+      "parametro da regra", "limiar", "threshold da regra"],
+     "Como calibrar uma regra",
+     "Cada regra tem um parâmetro só, e a supressão é de um alerta por "
+     "cliente, regra e mês. Com isso, o volume de alertas em qualquer corte "
+     "vira uma conta exata sobre o máximo mensal do indicador — não uma "
+     "estimativa.\n\n"
+     "A aba de calibração cruza esse volume com as decisões já tomadas: subir "
+     "o corte mostra quantos alertas somem e **quantas comunicações se "
+     "perderiam**. A segunda coluna é a que importa. Mudança de corte é "
+     "decisão de política e fica registrada na avaliação interna de risco "
+     "(art. 10), com data — a R01 caiu de 4× para 3× a renda em mar/2026."),
+
+    (["ciclo mensal", "checagem de cpf", "lote de cpf", "lotes de cpf",
+      "cobertura do ciclo"],
+     "O ciclo mensal de checagem de CPFs",
+     "A base de titulares é dividida em 28 lotes, e cada lote é checado num "
+     "dia do mês: situação do CPF na base oficial, PEP, e as regras de ciclo "
+     "mensal (R01, R04, R09, R10). Dias 29, 30 e 31 ficam sem lote.\n\n"
+     "A cobertura é métrica, não detalhe: em 14 a 16/abr/2026 o job falhou e "
+     "três lotes ficaram sem checagem até o reprocessamento de 20/abr. Sem o "
+     "painel de cobertura, esse buraco só apareceria na auditoria."),
+
+    (["supressao", "um alerta por mes", "alerta repetido", "alertas repetidos"],
+     "Supressão de alertas",
+     "Uma conta de passagem continua sendo conta de passagem no dia seguinte. "
+     "Sem supressão, a mesma situação gera um alerta por dia e a fila enche "
+     "de repetição. Aqui vale **um alerta por cliente, por regra, por mês** — "
+     "o primeiro dia em que o indicador passa do corte. A R10, de CPF "
+     "irregular, é a exceção: um alerta por situação irregular."),
 ]
 
 
@@ -465,7 +667,9 @@ def pergunta_de_conceito(texto: str) -> bool:
         r"me explica|como assim|qual a diferenca|diferenca entre|como nasce|"
         r"como surge|como e calculad|como sao calculad|como e feit|"
         r"para que serve|pra que serve|por que existe|qual a logica|"
-        r"como se calcula|de onde vem|de onde sai|como voces|em que consiste)\b",
+        r"como se calcula|de onde vem|de onde sai|como voces|em que consiste|"
+        r"como (o|a|os|as) [a-z ]{3,40} (e|sao) calculad[oa]s?|"
+        r"como (o|a|os|as) [a-z ]{3,40} funciona)\b",
         t))
 
 

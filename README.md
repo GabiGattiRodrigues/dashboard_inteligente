@@ -1,22 +1,23 @@
-# Analytics com agente — três domínios, um motor
+# Analytics com agente — quatro domínios, um motor
 
 Produto de analytics em que o agente não é um chatbot colado ao lado do
 dashboard: ele lê a mesma camada semântica que desenha os gráficos, respeita os
 mesmos filtros e devolve o mesmo número, por construção.
 
-Três domínios rodam no mesmo motor — **Marketing e CRM**, **Crédito** e
-**Produto e Operação** — cada um com o seu próprio agente, com nome, rosto,
-personalidade e vocabulário:
+Quatro domínios rodam no mesmo motor — **Marketing e CRM**, **Crédito**,
+**Produto e Operação** e **Compliance e PLD** — cada um com o seu próprio
+agente, com nome, rosto, personalidade e vocabulário:
 
 | Agente | Domínio | Como fala |
 |---|---|---|
 | **Abigail** 🐱 | Marketing e CRM | jovem e esperta: frases curtas, energia, já emenda o próximo passo |
 | **Bailey** 🐶 | Crédito | mais velho e metódico: primeiro a ressalva, depois o número, depois o que fazer |
 | **R2** 🐕 | Produto e Operação | mais velho e muito inteligente: fala pouco e certo, liga as pontas |
+| **Ravena** 🐦‍⬛ | Compliance e PLD | atenta e investigativa: o fato, depois a norma, depois o próximo passo — e nunca decide por ninguém |
 
 Quem responde sobre crédito não é quem responde sobre marketing, porque as
 ressalvas e o que conta como resposta boa são outros. A personalidade aparece
-no **tom** — nunca no número: os três leem o mesmo motor e devolvem o mesmo
+no **tom** — nunca no número: os quatro leem o mesmo motor e devolvem o mesmo
 valor. Cada um tem duas caras: a animada na aba de conversa e a atenta na aba
 de alertas, para a pessoa reconhecer quem está falando sem legenda.
 
@@ -24,8 +25,8 @@ de alertas, para a pessoa reconhecer quem está falando sem legenda.
 streamlit run app.py
 ```
 
-Há também uma **amostra estática** em `amostra/` — um retrato do app em uma
-página só, que abre no celular sem servidor. Os números dela saem dos motores
+Há também uma **amostra estática** em `amostra/` — um retrato dos três
+primeiros domínios em uma página só, que abre no celular sem servidor. Os números dela saem dos motores
 de verdade (`scripts/exportar_amostra.py` roda o app e exporta o JSON); só a
 interação é que fica de fora.
 
@@ -70,7 +71,173 @@ caindo antes — volta para a fila.
 
 O primeiro destes agentes, o **Vulcano**, nasceu na Petlove para fechar essa
 fila. Esta versão pública reconstrói o produto sobre dados abertos e o estende a
-outros dois domínios, para mostrar a arquitetura e as decisões técnicas.
+outros três domínios, para mostrar a arquitetura e as decisões técnicas.
+
+---
+
+## Compliance e PLD — a Ravena
+
+O quarto domínio leva o motor para onde a pergunta muda de natureza. Para a
+liderança de Compliance, a pergunta é agregada: quantos alertas as regras
+selecionam, quanto vira falso positivo, se a fila cabe no prazo. Para a
+analista, às nove da manhã, a pergunta é **quem**: qual cliente se enquadra em
+qual situação da Carta Circular 4.001, com qual evidência, e o que vence
+primeiro. O painel responde as duas — o agregado pelo motor genérico, o
+cliente a cliente por duas abas que só este domínio tem.
+
+| Aba | O que resolve |
+|---|---|
+| **Clientes em atenção** | a fila de análise em qualquer data: prioridade explicável, regras abertas, enquadramento na 4.001, valor e prazo de 45 dias em colunas separadas. Um clique abre o **dossiê**: o que disparou com a evidência em número, a conta da prioridade, a movimentação diária, as contrapartes (inclusive as que aparecem em outros clientes com alerta), o histórico e o rascunho de parecer — e o registro da decisão, com justificativa obrigatória |
+| **Regras e calibração** | as dez regras com indicador, corte, condições fixas e o trecho da norma de cada uma; o desempenho por regra; a **calibração** — o que acontece com o volume de alertas e com as comunicações se o corte mudar —; e a cobertura do ciclo mensal de checagem de CPFs |
+
+A **Causa raiz** ganha uma decomposição que nenhuma dimensão dá: o número de
+alertas é escrito como **avaliados × taxa de seleção**, e a variação entre dois
+meses abre em efeito população, efeito seleção e interação — subiu porque mais
+gente passou a se comportar assim, ou porque a régua passou a pegar mais? Junto
+vêm os **sinais brutos do mês** (quantos Pix, quanto valor, quantos pagadores
+distintos por conta, compras de madrugada, contas abertas), da população
+inteira e sem filtro de alerta, para conferir a conclusão contra o
+comportamento de verdade.
+
+A aba de **Alertas** também traz, logo abaixo dos cartões, **quem entrou na
+fila naquele dia** e **quem está com o prazo estourando** — o alerta da
+operação diz que o volume da R02 subiu; a pergunta seguinte é sempre de quem,
+e ela não deveria custar uma troca de aba. E a **Visão geral** acompanha o que
+está em investigação (entradas contra conclusões por semana, o que está em
+análise por regra, quem está parado há mais tempo) e o **indicador antes do
+corte**: a distribuição mensal do indicador de cada regra na população
+avaliada, com o corte desenhado por cima.
+
+A Ravena responde também no chat: `quais clientes precisam de atenção?`,
+`me mostra o dossiê do T-01160`, `o que é a R02?`, `o que diz a 3.978 sobre o
+prazo de análise?` — além de tudo o que o motor genérico já responde, como
+`qual regra tem mais falso positivo?`.
+
+### As regras
+
+Cada regra traduz uma situação da **Carta Circular BCB 4.001/2020** em um
+indicador, **um** parâmetro e condições fixas, com base na **Circular BCB
+3.978/2020**:
+
+| | Regra | Situação da 4.001 |
+|---|---|---|
+| R01 | Movimentação incompatível com a renda | IV, a |
+| R02 | Muitas origens e saída rápida (conta de passagem) | IV, n e IV, c |
+| R03 | Transferências logo abaixo do limite | IV, b e IV, l |
+| R04 | Conta pouco movimentada que acorda | IV, e e IV, i |
+| R05 | Recebimento no POS incompatível com o estabelecimento | IV, w |
+| R06 | Transações em horário incompatível | IV, y |
+| R07 | Recarga de benefício incompatível com o porte da empresa | IV, ac e III, j |
+| R08 | Contas abertas em lote no mesmo dispositivo | III, f e III, l |
+| R09 | PEP com movimentação relevante | IV, s |
+| R10 | CPF irregular na checagem mensal | III, e |
+
+Os resumos das normas no painel são para leitura rápida; a referência é sempre
+o normativo publicado pelo Banco Central.
+
+### As decisões que valem discussão
+
+**Falso positivo só conta alerta maduro.** É o problema da safra de crédito
+com outra roupa. Num alerta de ontem, só os casos fáceis já foram decididos —
+e caso fácil costuma ser descarte. Falso positivo, conversão em comunicação,
+contagem de comunicações e tempo de análise só entram na conta para alertas
+com 45 dias ou mais, o prazo máximo de análise (art. 43, § 1º). O que passou
+disso sem decisão não some: vira "fora do prazo".
+
+**Prioridade é soma de fatores nomeados, não modelo.** A analista precisa
+defender a ordem da fila na frente do auditor. A prioridade soma gravidade da
+regra mais grave aberta, valor em escala log, regras distintas abertas no
+mesmo cliente, reincidência, risco cadastral, PEP e fronteira — e o dossiê
+mostra a conta. Dois sinais independentes valem mais que um forte sozinho: é
+a convergência que separa indício de coincidência. **Prazo anda em coluna
+separada**, para o caso médio que vence amanhã não sumir atrás do grave que
+ainda tem um mês.
+
+**Contar alerta mede a régua e o comportamento ao mesmo tempo.** Quando o
+volume sobe, a primeira pergunta é qual dos dois se mexeu: o cliente ou o
+corte. Por isso o painel guarda, mês a mês, os percentis do indicador de cada
+regra na população avaliada — se o p95 está parado e o volume dobrou, quem se
+moveu foi o parâmetro. A leitura dessa comparação é escrita na tela.
+
+**Um parâmetro por regra e supressão mensal tornam a calibração exata.** Com
+um alerta por cliente, regra e mês, a regra dispara no mês se, e só se, o
+máximo mensal do indicador passar do corte. O volume de alertas em qualquer
+corte vira conta exata — e um teste garante que, no corte vigente, ela devolve
+o mesmo número que o motor. A tela mostra o custo dos dois lados: quantos
+alertas somem e **quantas comunicações se perderiam**. Baixar o corte não tem
+esse número, e a tela diz isso em vez de estimar.
+
+**A fila de qualquer dia é reconstruída, não guardada.** Cada alerta tem data
+de seleção e data de decisão; um alerta está na fila em `F` se foi
+selecionado até `F` e não tinha decisão em `F`. É o que permite voltar a
+junho e ver a fila estourando o prazo — e o que garante que o "em aberto" da
+aba seja o "em aberto" do motor.
+
+**O dossiê organiza, não decide.** O rascunho de parecer só usa números que
+estão nas evidências e nas contrapartes (há teste para isso), fala em indício
+e nunca em culpa, e termina com uma leitura dos sinais — convergentes ou
+isolados — e não com "comunicar" ou "descartar". A decisão exige justificativa
+mesmo no descarte, porque sem ela não existe dossiê (art. 43, § 2º).
+
+**Prazo de comunicação é em dia útil.** Análise conta dias corridos;
+comunicação vai até o dia útil seguinte ao da decisão (art. 48, § 2º). O
+calendário tem os feriados do período, e o teste cobra a Sexta-feira Santa e
+o Corpus Christi.
+
+### A base simulada
+
+Nenhuma instituição publica os próprios alertas, então a operação foi gerada
+com estrutura declarada em `scripts/build_pld.py`: uma plataforma fictícia de
+benefícios flexíveis com conta digital, 9,2 mil titulares, 425 empresas e 1,2
+mil estabelecimentos, de set/2025 a ago/2026. O job roda as mesmas funções de
+`vulcano/pld/regras.py` que a tela explica e simula uma fila de analistas com
+capacidade limitada. O que foi plantado de propósito:
+
+- contas de passagem abertas em lote no mesmo celular, em onda de jun a ago;
+- troca de benefício em mercearias de fronteira, abastecida por empresas
+  recém-cadastradas;
+- incompatibilidade com renda, fracionamento, PEP com movimentação habitual e
+  conta de titular falecido que continua movimentando;
+- a mudança do corte da R01 de 4× para 3× a renda em mar/2026;
+- férias de duas analistas no pico da onda, que fazem a fila estourar o prazo
+  em junho;
+- uma pré-triagem automática a partir de jul/2026;
+- a falha do job de checagem de CPF em 14–16/abr, reprocessada em 20/abr;
+- ruído legítimo: venda de carro, vaquinha, inauguração, PLR de dezembro,
+  farmácia 24h cadastrada como comercial.
+
+O gabarito das tipologias fica em `data/pld_gabarito.parquet` e só os testes
+o leem — um deles verifica que cada tipologia é encontrada pela regra que diz
+encontrá-la. Documentos aparecem mascarados, e os códigos de cliente (T-, L-,
+E-) são inventados.
+
+### Automação de baixo custo: a fila em Google Sheets
+
+`automacoes/apps_script/fila_pld.gs` leva a mesma fila para uma planilha, sem
+squad de engenharia:
+
+1. `python scripts/exportar_fila.py` gera o CSV dos alertas abertos, com a
+   prioridade já calculada pelo Python (a planilha não reimplementa a regra,
+   para as duas nunca divergirem). Importe na aba `alertas`; cadastre os
+   feriados na aba `feriados`.
+2. Em **Extensões › Apps Script**, cole o arquivo e, em Propriedades do
+   script, crie `SLACK_WEBHOOK` com o webhook do canal de Compliance.
+3. Rode `instalar()` uma vez. Ele cria a aba `fila`, protege as colunas
+   calculadas e agenda o `resumoDoDia()` para todo dia útil às 8h.
+
+Daí em diante: a fila é refeita toda manhã preservando as decisões já
+digitadas; os vencidos sobem para o topo; a decisão só é carimbada com data e
+e-mail se tiver justificativa; comunicação ganha o prazo de envio em dia útil;
+tudo vai para a aba `log`; e o Slack recebe o resumo com vencidos, o que vence
+em 7 dias, o que precisa ser enviado ao Coaf hoje e os cinco primeiros da fila.
+
+### Rosto da Ravena
+
+Os outros agentes têm duas imagens em `assets/` (`<nome>-animada.png` e
+`<nome>-alerta.png`). A Ravena usa o emoji 🐦‍⬛ até ganhar as dela: basta
+colocar `ravena-animada.png` e `ravena-alerta.png` na pasta (o
+`scripts/recortar_agentes.py` tira o fundo) e o painel passa a usá-las sem
+mudar nenhuma linha de código.
 
 ---
 
@@ -309,6 +476,7 @@ se a base for atualizada, e fica auditável.
 | Marketing e CRM | Brazilian E-Commerce Public Dataset by Olist — **dado público real**, 99 mil pedidos | jan/2017 – ago/2018 |
 | Produto e Operação | Mesma base do Olist, lida pela ótica de operação e satisfação | jan/2017 – ago/2018 |
 | Crédito | **Carteira simulada** — ver abaixo | jan/2017 – ago/2018 |
+| Compliance e PLD | **Operação simulada** — ver a seção da Ravena | set/2025 – ago/2026 |
 
 **Sobre o domínio de crédito:** não há base pública de crédito com data de
 originação e marcação de inadimplência disponível, e sem ela não dá para mostrar
@@ -329,12 +497,22 @@ causa raiz encontra sozinho as safras de set/out/nov de 2017 como as piores.
 iniciar.bat                 atalho de dois cliques (Windows)
 iniciar.command             atalho de dois cliques (macOS/Linux)
 app.py                      interface Streamlit — só tela, nenhuma conta
+telas_pld.py                as abas que só Compliance tem (fila, dossiê, regras)
 vulcano/
   semantica.py              Metrica, Dimensao, Limite, Dominio
   dominios/                 um arquivo por domínio (a única coisa a escrever
     marketing.py            para adicionar um quarto)
     credito.py
     produto.py
+    pld.py
+  pld/                      o que só existe em PLD
+    regras.py               catálogo: indicador, corte, condições, norma
+    normas.py               os trechos da 3.978 e da 4.001 citados na tela
+    fila.py                 prioridade explicável e a fila em qualquer data
+    parecer.py              o dossiê e o rascunho de parecer
+    agente.py               intenções da Ravena: fila, dossiê, regra
+    calendario.py           dias úteis e prazos
+    dados.py                tabelas auxiliares do job
   dados.py                  montagem de SQL e acesso via DuckDB
   periodos.py               resolução de período e período comparável
   causa_raiz.py             decomposição aditiva e taxa/mix/interação
@@ -348,6 +526,8 @@ vulcano/
 scripts/
   build_fact.py             ETL do Olist
   build_credito.py          gerador da carteira simulada
+  build_pld.py              gerador da operação de PLD simulada + job de regras
+  exportar_fila.py          CSV da fila para a planilha do Apps Script
   acentuar.py               acentuação do texto (só dentro de literais)
   exportar_amostra.py       roda os motores e exporta o JSON da amostra
   build_amostra.py          injeta o JSON no template e gera a amostra
@@ -356,7 +536,9 @@ scripts/
   ver_amostra.js            abre a amostra em 390px, nos dois temas
 assets/                     rostos dos agentes, PNG com fundo transparente
 amostra/                    amostra estática de uma página (dados + HTML)
+automacoes/apps_script/     a fila de PLD em Google Sheets, com gatilho e Slack
 tests/test_motor.py         invariantes do motor
+tests/test_pld.py           invariantes de Compliance
 data/                       parquets gerados
 ```
 
@@ -394,6 +576,7 @@ Para regerar os dados do zero:
 bash scripts/baixar_olist.sh       # baixa os CSVs públicos do Olist
 python scripts/build_fact.py       # tabela fato do Olist
 python scripts/build_credito.py    # carteira simulada de crédito
+python scripts/build_pld.py        # operação simulada de PLD
 ```
 
 ### Ligando o agente com modelo de linguagem
@@ -460,7 +643,7 @@ Depois disso, todo push na `main` reimplanta sozinho.
 
 ```bash
 python tests/test_motor.py         # ou: python -m pytest tests/ -q
-node scripts/smoke.js              # percorre as 18 telas no navegador
+node scripts/smoke.js              # percorre as 26 telas no navegador
 ```
 
 Os testes não verificam "o código roda" — verificam as afirmações que o produto
@@ -472,6 +655,13 @@ desvio que média-e-desvio não detectaria, que "pior" respeita a direção da
 métrica, que "oi" não vira faturamento, que "o que é um alerta" explica
 enquanto "tem alerta hoje?" lista, e que o funil aponta a queda entre duas
 etapas em vez do nível da última.
+
+Em Compliance, `tests/test_pld.py` cobra que cada tipologia plantada é
+encontrada pela regra certa, que a calibração conta o mesmo que o motor, que a
+fila da aba é o "em aberto" do motor, que alerta imaturo não entra em taxa,
+que o prazo de comunicação pula feriado, que a prioridade é a soma dos fatores
+mostrados, que o dossiê não inventa número nem decide, e que cada pergunta vai
+para a rota certa.
 
 ---
 

@@ -39,7 +39,7 @@ async function checarErros(page, onde) {
 }
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+  const browser = await chromium.launch({ executablePath: process.env.VULC_CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
   const page = await browser.newPage({ viewport: { width: 1600, height: 1100 } });
 
   page.on('pageerror', e => problemas.push(`JS pageerror: ${e.message}`));
@@ -49,12 +49,21 @@ async function checarErros(page, onde) {
   await checarErros(page, 'capa');
   await page.screenshot({ path: `${OUT}/00-capa.png`, fullPage: true });
 
-  const dominios = ['Marketing e CRM', 'Crédito', 'Produto e Operação'];
+  // VULC_DOMINIOS="Compliance e PLD" roda so um dominio.
+  const todos = ['Marketing e CRM', 'Crédito', 'Produto e Operação',
+                 'Compliance e PLD'];
+  const dominios = process.env.VULC_DOMINIOS
+    ? todos.filter(d => process.env.VULC_DOMINIOS.split(',').includes(d))
+    : todos;
   // A aba do agente muda de nome por dominio: casada por prefixo.
-  // "à" para a Abigail, "ao" para o Bailey e o R2 -- o painel conjuga
-  // pelo genero do agente, entao o teste tem de aceitar os dois.
-  const abas = ['Alertas', /^Pergunte a?[oà] /, 'Visão geral',
-                'Comparação de períodos', 'Causa raiz', 'Sobre os dados'];
+  // "à" para a Abigail e a Ravena, "ao" para o Bailey e o R2 -- o painel
+  // conjuga pelo genero do agente, entao o teste tem de aceitar os dois.
+  const abasPadrao = ['Alertas', /^Pergunte a?[oà] /, 'Visão geral',
+                      'Comparação de períodos', 'Causa raiz', 'Sobre os dados'];
+  // Compliance tem duas abas a mais: a fila cliente a cliente e as regras.
+  const abasPld = ['Alertas', /^Pergunte a?[oà] /, 'Clientes em atenção',
+                   'Visão geral', 'Regras e calibração',
+                   'Comparação de períodos', 'Causa raiz', 'Sobre os dados'];
 
   for (let di = 0; di < dominios.length; di++) {
     const nome = dominios[di];
@@ -71,6 +80,7 @@ async function checarErros(page, onde) {
     await calma(page, 3000);
     if (await checarErros(page, `${nome} / carregamento`)) continue;
 
+    const abas = nome === 'Compliance e PLD' ? abasPld : abasPadrao;
     for (let ai = 0; ai < abas.length; ai++) {
       // Fecha qualquer popover/dialogo aberto (calendario do date_input)
       await page.keyboard.press('Escape').catch(() => {});
@@ -92,6 +102,76 @@ async function checarErros(page, onde) {
       const slug = `${di}${ai}-${nome.split(' ')[0]}-${rotulo.replace(/[^A-Za-zÀ-ÿ]/g,'').slice(0,12)}`;
       await page.screenshot({ path: `${OUT}/${slug}.png`, fullPage: true });
 
+      // Na aba de alertas, o botao "Ver esse dia" so aparece quando o dia
+      // escolhido esta limpo -- e era exatamente ali que estourava um
+      // StreamlitWidgetAlreadyInstantiatedError em producao, porque ele
+      // reposiciona o date_input. Percorrer as abas sem clicar nele nao pega
+      // esse erro: o caminho tem de ser exercitado.
+      if (alvo === 'Alertas') {
+        const ver = page.getByRole('button', { name: /Ver esse dia/ });
+        if (await ver.count()) {
+          await ver.first().click({ force: true }).catch(() => {});
+          await calma(page, 2600);
+          await checarErros(page, `${nome} / Alertas / Ver esse dia`);
+          await page.screenshot({ path: `${OUT}/${slug}-verdia.png`, fullPage: true });
+        } else {
+          // Sem o botao na tela, forca um dia limpo mexendo no corte de
+          // relevancia ate a lista esvaziar.
+          const sliders = page.locator('[data-testid="stSlider"]');
+          if (await sliders.count() > 1) {
+            const alvoSlider = sliders.nth(0);
+            const cx = await alvoSlider.boundingBox();
+            if (cx) {
+              await page.mouse.click(cx.x + cx.width - 4, cx.y + cx.height / 2);
+              await calma(page, 2600);
+              const ver2 = page.getByRole('button', { name: /Ver esse dia/ });
+              if (await ver2.count()) {
+                await ver2.first().click({ force: true }).catch(() => {});
+                await calma(page, 2600);
+                await checarErros(page, `${nome} / Alertas / Ver esse dia (dia limpo)`);
+              }
+            }
+          }
+        }
+      }
+
+      // Na fila de PLD, abre o dossie de outro cliente clicando na tabela e
+      // registra uma decisao: o caminho que escreve em session_state.
+      if (alvo === 'Clientes em atenção') {
+        const busca = page.getByPlaceholder(/T-01160/);
+        if (await busca.count()) {
+          await busca.first().fill('T-06857');
+          await busca.first().press('Enter');
+          await calma(page, 3000);
+          await checarErros(page, `${nome} / dossie por busca`);
+          const just = page.getByPlaceholder(/origem comprovada/);
+          if (await just.count()) {
+            await just.first().fill('Origem comprovada por documento de venda; renda atualizada.');
+            const reg = page.getByRole('button', { name: /Registrar decisão/ });
+            if (await reg.count()) { await reg.first().click({ force: true }); await calma(page, 3000); }
+            await checarErros(page, `${nome} / registrar decisao`);
+          } else {
+            problemas.push('formulario de decisao ausente no dossie');
+          }
+          await page.screenshot({ path: `${OUT}/${slug}-dossie.png`, fullPage: true });
+          await busca.first().fill('');
+          await busca.first().press('Enter');
+          await calma(page, 2000);
+        }
+      }
+      if (alvo === 'Regras e calibração') {
+        const sliders = page.locator('[data-testid="stSlider"]');
+        if (await sliders.count()) {
+          const bx = await sliders.first().boundingBox();
+          if (bx) {
+            await page.mouse.click(bx.x + bx.width * 0.8, bx.y + bx.height / 2);
+            await calma(page, 2600);
+            await checarErros(page, `${nome} / calibracao`);
+            await page.screenshot({ path: `${OUT}/${slug}-calibracao.png`, fullPage: true });
+          }
+        }
+      }
+
       // Na aba do agente, faz de fato uma pergunta e confere a resposta.
       if (alvo instanceof RegExp) {
         const exemplos = page.locator('button:has-text("?")');
@@ -107,7 +187,9 @@ async function checarErros(page, onde) {
             problemas.push(`resposta vazia ou curta em ${nome} (exemplo ${idx}): "${corpo.slice(0,80)}"`);
           }
           // LaTeX vazando: cifrao sobrevivente vira formula e some da tela
-          if (/R\s*\d/.test(corpo) && !/R\$/.test(corpo)) {
+          // "R01", "R10" sao codigos de regra de PLD, nao moeda sem cifrao
+          const semRegras = corpo.replace(/\bR\d{2}\b/g, '');
+          if (/R\s*\d/.test(semRegras) && !/R\$/.test(semRegras)) {
             problemas.push(`possivel cifrao comido pelo LaTeX em ${nome}: "${corpo.slice(0,120)}"`);
           }
           await page.screenshot({ path: `${OUT}/${slug}-p${idx}.png`, fullPage: true });

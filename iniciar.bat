@@ -15,12 +15,12 @@ rem ===================================================================
 
 setlocal enableextensions
 chcp 65001 >nul 2>&1
-title Analytics com agente - tres paineis, um motor
+title Analytics com agente - quatro paineis, um motor
 cd /d "%~dp0"
 
 echo.
 echo  ==========================================================
-echo    Analytics com agente - tres paineis, um motor
+echo    Analytics com agente - quatro paineis, um motor
 echo  ==========================================================
 echo.
 
@@ -74,31 +74,43 @@ if not exist "%VPY%" (
 )
 
 rem --- 3. Dependencias ------------------------------------------------
-rem O arquivo-marca evita reinstalar tudo a cada abertura.
-if not exist ".venv\instalado.txt" (
-  echo  [ 3/4 ]  Instalando as bibliotecas. Isso leva alguns minutos
-  echo           na primeira vez; nas proximas e instantaneo.
-  echo           O progresso aparece abaixo - e normal demorar.
+rem O arquivo-marca evita reinstalar tudo a cada abertura -- mas ele guarda a
+rem DATA E O TAMANHO do requirements.txt, e nao um "pronto" generico. Sem
+rem isso, um requirements novo (por exemplo o que passou a limitar a versao
+rem do Streamlit) nunca chegaria a um .venv antigo, e o painel quebraria na
+rem maquina de quem ja tinha rodado uma vez -- justamente o caso mais dificil
+rem de descobrir, porque "aqui funciona" para quem instalou hoje.
+set "MARCA=.venv\instalado.txt"
+for %%F in (requirements.txt) do set "REQ=%%~tF %%~zF"
+set "JAINSTALADO="
+if exist "%MARCA%" set /p JAINSTALADO=<"%MARCA%"
+if "%JAINSTALADO%"=="%REQ%" goto deps_prontas
+if not "%JAINSTALADO%"=="" echo  [ 3/4 ]  O requirements.txt mudou; atualizando as bibliotecas.
+if "%JAINSTALADO%"=="" echo  [ 3/4 ]  Instalando as bibliotecas. Isso leva alguns minutos na primeira vez.
+echo           O progresso aparece abaixo - e normal demorar.
+echo.
+rem Sem --quiet de proposito: uma instalacao de varios minutos sem nenhum
+rem sinal na tela parece travamento, e a pessoa fecha a janela no meio.
+rem --retries/--timeout evitam que um solucos de rede derrube tudo.
+"%VPY%" -m pip install --upgrade pip --disable-pip-version-check --retries 5 --timeout 60
+"%VPY%" -m pip install -r requirements.txt --disable-pip-version-check --retries 5 --timeout 60
+if errorlevel 1 (
   echo.
-  rem Sem --quiet de proposito: uma instalacao de varios minutos sem nenhum
-  rem sinal na tela parece travamento, e a pessoa fecha a janela no meio.
-  rem --retries/--timeout evitam que um solucos de rede derrube tudo.
-  "%VPY%" -m pip install --upgrade pip --disable-pip-version-check --retries 5 --timeout 60
-  "%VPY%" -m pip install -r requirements.txt --disable-pip-version-check --retries 5 --timeout 60
-  if errorlevel 1 (
-    echo.
-    echo  [ X ]  A instalacao falhou - quase sempre e conexao.
-    echo         Rode este arquivo de novo; ele continua de onde parou.
-    echo.
-    pause
-    exit /b 1
-  )
-  echo pronto> ".venv\instalado.txt"
+  echo  [ X ]  A instalacao falhou - quase sempre e conexao.
+  echo         Rode este arquivo de novo; ele continua de onde parou.
   echo.
-  echo           Bibliotecas instaladas.
-) else (
-  echo  [ 3/4 ]  Bibliotecas ja instaladas.
+  pause
+  exit /b 1
 )
+>"%MARCA%" echo %REQ%
+echo.
+echo           Bibliotecas instaladas.
+goto dados
+
+:deps_prontas
+echo  [ 3/4 ]  Bibliotecas ja instaladas.
+
+:dados
 
 rem --- 4. Dados -------------------------------------------------------
 if not exist "data\fato_olist.parquet" (
@@ -115,6 +127,11 @@ if not exist "data\fato_olist.parquet" (
 if not exist "data\fato_credito.parquet" (
   echo  [ ! ]  Gerando a carteira de credito simulada...
   "%VPY%" scripts\build_credito.py
+)
+
+if not exist "data\fato_pld.parquet" (
+  echo  [ ! ]  Gerando a operacao de PLD simulada...
+  "%VPY%" scripts\build_pld.py
 )
 
 rem --- Evita o Streamlit parar pedindo e-mail na primeira execucao ----

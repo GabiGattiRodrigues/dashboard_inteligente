@@ -509,7 +509,13 @@ def motivo_provavel(
         f"{numero(float(topo['de']), m)} para {numero(float(topo['para']), m)} "
         f"(base: média dos {dias_base} mesmos dias da semana anteriores)."
     )
-    if desproporcao >= 1.6:
+    if normal < 0.01:
+        # Segmento que praticamente não existia na base: a razão "fatia do
+        # desvio ÷ fatia normal" explode (1.120.228×) e vira ruído na tela.
+        frase += (" Esse segmento quase não aparece na métrica no dia a dia — "
+                  "o desvio nasce praticamente todo nele, e é aí que vale "
+                  "olhar primeiro.")
+    elif desproporcao >= 1.6:
         frase += (f" Esse segmento normalmente responde por apenas "
                   f"{pct(normal, 0, sinal=False)} da métrica — ou seja, ele "
                   f"pesa {_br_num(desproporcao)}× mais no desvio do que pesa "
