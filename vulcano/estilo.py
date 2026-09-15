@@ -22,10 +22,24 @@ CSS = f"""
   .vulc-hero {{
     border: 1px solid {GRADE}; border-radius: 14px; background: {SURFACE};
     padding: 30px 32px; margin-bottom: 22px;
+    display: flex; align-items: center; gap: 26px;
   }}
   .vulc-hero h1 {{ margin: 0 0 6px 0; font-size: 2.1rem; }}
   .vulc-hero .sub {{ color: {TINTA_2}; font-size: 1.02rem; line-height: 1.55;
                      max-width: 62ch; }}
+  /* O texto para em 62ch por legibilidade, e ate aqui isso deixava a metade
+     direita do cabecalho vazia em tela larga. O elenco ocupa essa sobra: e o
+     unico lugar do app em que os quatro agentes aparecem juntos. */
+  .vulc-hero .texto {{ flex: 1 1 auto; min-width: 0; }}
+  .vulc-hero .elenco {{ flex: 0 0 auto; width: 400px; max-width: 36%; }}
+  .vulc-hero .elenco img {{ width: 100%; height: auto; display: block;
+                            border-radius: 12px; border: 1px solid {GRADE}; }}
+  /* Abaixo disto o texto ja ocupa a linha inteira: insistir na imagem so
+     espremeria os dois. */
+  @media (max-width: 1150px) {{
+    .vulc-hero {{ display: block; }}
+    .vulc-hero .elenco {{ display: none; }}
+  }}
 
   .vulc-card {{
     border: 1px solid {GRADE}; border-radius: 12px; background: {SURFACE};
@@ -177,23 +191,34 @@ CSS = f"""
 PASTA_ASSETS = pathlib.Path(__file__).resolve().parents[1] / "assets"
 
 
-@functools.lru_cache(maxsize=32)
-def avatar_uri(prefixo: str, variante: str = "animada") -> Optional[str]:
-    """
-    O PNG do agente como data URI.
+TIPOS = {".png": "image/png", ".webp": "image/webp", ".jpg": "image/jpeg",
+         ".jpeg": "image/jpeg", ".svg": "image/svg+xml"}
 
-    Vira data URI, e nao caminho de arquivo, porque o avatar aparece dentro de
-    blocos de HTML que o Streamlit injeta -- e ali um caminho local do servidor
-    nao resolve. Em cache porque sao 6 arquivos lidos em toda reexecucao do
-    script, e o Streamlit reexecuta o script inteiro a cada clique.
+
+@functools.lru_cache(maxsize=32)
+def asset_uri(arquivo: str) -> Optional[str]:
     """
-    if not prefixo:
-        return None
-    caminho = PASTA_ASSETS / f"{prefixo}-{variante}.png"
+    Um arquivo de assets/ como data URI.
+
+    Vira data URI, e nao caminho de arquivo, porque a imagem aparece dentro de
+    blocos de HTML que o Streamlit injeta -- e ali um caminho local do servidor
+    nao resolve. Em cache porque sao os mesmos arquivos lidos em toda
+    reexecucao do script, e o Streamlit reexecuta o script inteiro a cada
+    clique.
+    """
+    caminho = PASTA_ASSETS / arquivo
     if not caminho.exists():
         return None
+    mime = TIPOS.get(caminho.suffix.lower(), "application/octet-stream")
     dados = base64.b64encode(caminho.read_bytes()).decode("ascii")
-    return f"data:image/png;base64,{dados}"
+    return f"data:{mime};base64,{dados}"
+
+
+def avatar_uri(prefixo: str, variante: str = "animada") -> Optional[str]:
+    """O PNG do agente como data URI."""
+    if not prefixo:
+        return None
+    return asset_uri(f"{prefixo}-{variante}.png")
 
 
 def rosto(dom, variante: str = "animada", tamanho: int = 44) -> str:

@@ -31,7 +31,7 @@ from vulcano.dados import (Filtros, agregar, comparar, conectar,
                            periodo_disponivel, serie_diaria,
                            valores_da_dimensao)
 from vulcano.dominios import listar, obter
-from vulcano.estilo import (CSS, avatar_uri, cabecalho_comparacao,
+from vulcano.estilo import (CSS, asset_uri, avatar_uri, cabecalho_comparacao,
                             cartao_alerta, cartao_metrica, descrever_janela,
                             md, nota, rosto, selo, selo_construcao)
 from vulcano.formatacao import julgar, numero, pct
@@ -52,8 +52,8 @@ MARCA_ROSTO = "◆"
 # Domínios ainda em ajuste. Ficam publicados e navegáveis, com selo na capa e
 # aviso no topo do painel: esconder até "ficar pronto" é o que faz um projeto
 # de portfólio nunca sair do lugar. Tirar daqui é o passo único para dizer que
-# terminou.
-EM_CONSTRUCAO = {"pld"}
+# terminou -- foi o que aconteceu com PLD em set/2026.
+EM_CONSTRUCAO: set[str] = set()
 
 st.set_page_config(page_title=MARCA, page_icon="📊", layout="wide")
 st.markdown(CSS, unsafe_allow_html=True)
@@ -161,8 +161,15 @@ def render_capa() -> None:
     agentes = " · ".join(d.agente_nome for d in listar())
     quantos = {3: "Três", 4: "Quatro", 5: "Cinco"}.get(len(listar()),
                                                      str(len(listar())))
+    # O elenco e opcional de proposito: sem o arquivo, o cabecalho volta a ser
+    # so o texto, em vez de mostrar imagem quebrada.
+    uri_elenco = asset_uri("elenco.webp")
+    elenco = (f'<div class="elenco"><img src="{uri_elenco}" '
+              f'alt="Os agentes do painel: {agentes}"></div>'
+              if uri_elenco else "")
     st.markdown(
         f"""<div class="vulc-hero">
+        <div class="texto">
         <h1>{MARCA_ROSTO} {MARCA}</h1>
         <div class="sub">
           {quantos} painéis, um motor: gráficos, comparação de períodos, causa raiz
@@ -173,7 +180,7 @@ def render_capa() -> None:
           próprios: {agentes}. Quem responde sobre crédito não é quem responde
           sobre marketing, porque o vocabulário, as ressalvas e o que conta
           como resposta boa são outros. O motor por baixo é o mesmo.
-        </div></div>""",
+        </div></div>{elenco}</div>""",
         unsafe_allow_html=True,
     )
 
