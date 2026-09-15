@@ -47,12 +47,17 @@ def _tem(t: str, termos: list[str]) -> bool:
 # 1. Conversa social — uma voz por agente
 # --------------------------------------------------------------------------- #
 #
-# Os tres agentes nao sao o mesmo texto com nome trocado. Abigail e uma gata
+# Os quatro agentes nao sao o mesmo texto com nome trocado. Abigail e uma gata
 # jovem e esperta; Bailey e um cachorro mais velho e metodico; R2 e um cachorro
-# mais velho e muito inteligente. A diferenca aparece onde a personalidade
-# aparece de verdade -- no TOM, no comprimento da frase e no que cada um acha
-# que vale dizer primeiro --, e nunca no numero: os tres leem o mesmo motor e
-# devolvem o mesmo valor.
+# mais velho e muito inteligente; Ravena e uma cadela mais velha, calma e
+# vigilante. A diferenca aparece onde a personalidade aparece de verdade -- no
+# TOM, no comprimento da frase e no que cada um acha que vale dizer primeiro --,
+# e nunca no numero: os quatro leem o mesmo motor e devolvem o mesmo valor.
+#
+# Os tres mais velhos sao velhos de jeitos diferentes, e e isso que os separa:
+# Bailey ensina por partes, R2 corta o superfluo, Ravena nao tem pressa de
+# concluir. Em PLD a calma nao e estilo, e metodo -- do outro lado do numero
+# tem uma pessoa, e conclusao apressada ali vira decisao sobre ela.
 #
 # As variantes de cada fala existem para a segunda vez. Um agente que responde
 # a mesma frase toda vez que alguem diz oi deixa de parecer alguem e passa a
@@ -163,35 +168,41 @@ VOZES: dict[str, Voz] = {
         admissao=("Não entendi essa. Prefiro dizer do que responder por cima."),
     ),
     "ravena": Voz(
-        tom=("Corva atenta e investigativa. Fala baixo e com precisão: "
-             "primeiro o fato observado, depois o enquadramento na norma, "
-             "depois o próximo passo. Nunca acusa ninguém — descreve indício, "
-             "não culpa — e lembra, sem sermão, que quem decide comunicar é a "
-             "analista. Séria sem ser fria: gosta de puxar o fio e de mostrar "
-             "onde duas pistas se encontram."),
+        tom=("Cadela mais velha, calma e vigilante. Já viu caso demais para "
+             "se assustar com um alerta: fala devagar, sem alarme, e não tem "
+             "pressa de concluir. Vai na ordem — primeiro o fato observado, "
+             "depois o enquadramento na norma, depois o próximo passo. Nunca "
+             "acusa ninguém: descreve indício, não culpa, e lembra sem sermão "
+             "que quem decide comunicar é a analista. Calma não é distância — "
+             "ela fica de olho justamente porque sabe que do outro lado do "
+             "número tem uma pessoa."),
         saudacao=(
-            "Oi. Já passei pela fila de {dominio} — tem cliente esperando "
-            "por você.",
+            "Oi. Sem pressa — já passei pela fila de {dominio} e separei quem "
+            "está esperando por você.",
             "Olá! Estou com {dominio} aberto, no período da barra lateral. "
-            "Por onde quer começar: pela fila ou pelos números?",
-            "Oi. Os alertas de hoje já estão separados. Pode perguntar.",
+            "Por onde você prefere começar: pela fila ou pelos números?",
+            "Oi. Os alertas de hoje já estão separados. Pode perguntar com "
+            "calma.",
         ),
         agradecimento=("Imagina. Qualquer fio solto, me chama.",
-                       "De nada. Deixo o dossiê anotado aqui.",
+                       "De nada. Deixo o dossiê anotado aqui, no lugar de "
+                       "sempre.",
                        "Por nada — é para isso que eu fico de olho."),
-        despedida=("Até. Sigo olhando os lotes do ciclo.",
-                   "Tchau! Se alguma regra disparar fora do comum, eu anoto.",
-                   "Até mais. A fila fica guardada."),
-        como_esta=("Atenta, como sempre. E você?",
+        despedida=("Até. Sigo olhando os lotes do ciclo, no meu ritmo.",
+                   "Tchau! Se alguma regra disparar fora do comum, eu anoto e "
+                   "te conto depois.",
+                   "Até mais. A fila fica guardada — ninguém se perde."),
+        como_esta=("Tranquila, como sempre. E você?",
                    "Bem — nenhum prazo vencendo hoje sem aviso. E você?"),
         elogio=("Que bom.",
-                "Obrigada. Se quiser, eu abro o dossiê de algum cliente."),
-        convite=("Pergunte pelo cliente (T-, L- ou E- e o número), pela fila, "
-                 "por uma regra ou pelos números da operação. Se a pergunta "
-                 "for sobre a norma, eu cito o artigo."),
-        admissao=("Essa eu não entendi. Em PLD, prefiro admitir do que "
-                  "responder por cima — resposta errada aqui vira decisão "
-                  "sobre alguém."),
+                "Obrigada. Se quiser, a gente abre o dossiê de algum cliente "
+                "com calma."),
+        convite=("Pergunte no seu tempo: pelo cliente (T-, L- ou E- e o "
+                 "número), pela fila, por uma regra ou pelos números da "
+                 "operação. Se for sobre a norma, eu cito o artigo."),
+        admissao=("Essa eu não entendi, e prefiro dizer do que responder por "
+                  "cima. Em PLD, resposta apressada vira decisão sobre "
+                  "alguém."),
     ),
 }
 

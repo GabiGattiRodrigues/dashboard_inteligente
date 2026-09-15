@@ -13,7 +13,7 @@ agente, com nome, rosto, personalidade e vocabulário:
 | **Abigail** 🐱 | Marketing e CRM | jovem e esperta: frases curtas, energia, já emenda o próximo passo |
 | **Bailey** 🐶 | Crédito | mais velho e metódico: primeiro a ressalva, depois o número, depois o que fazer |
 | **R2** 🐕 | Produto e Operação | mais velho e muito inteligente: fala pouco e certo, liga as pontas |
-| **Ravena** 🐦‍⬛ | Compliance e PLD | atenta e investigativa: o fato, depois a norma, depois o próximo passo — e nunca decide por ninguém |
+| **Ravena** 🐕‍🦺 | Compliance e PLD | mais velha, calma e vigilante: sem pressa de concluir — o fato, depois a norma, depois o próximo passo, e nunca decide por ninguém |
 
 Quem responde sobre crédito não é quem responde sobre marketing, porque as
 ressalvas e o que conta como resposta boa são outros. A personalidade aparece
@@ -233,11 +233,17 @@ em 7 dias, o que precisa ser enviado ao Coaf hoje e os cinco primeiros da fila.
 
 ### Rosto da Ravena
 
-Os outros agentes têm duas imagens em `assets/` (`<nome>-animada.png` e
-`<nome>-alerta.png`). A Ravena usa o emoji 🐦‍⬛ até ganhar as dela: basta
-colocar `ravena-animada.png` e `ravena-alerta.png` na pasta (o
-`scripts/recortar_agentes.py` tira o fundo) e o painel passa a usá-las sem
-mudar nenhuma linha de código.
+Como os outros agentes, a Ravena tem duas imagens em `assets/`, e o painel
+escolhe uma ou outra pelo lugar em que ela aparece:
+
+| Arquivo | Onde aparece | Expressão |
+|---|---|---|
+| `ravena-animada.png` | card do domínio e cabeçalho da conversa | de bom humor, com a bola na boca — é a Ravena quando você chega para perguntar |
+| `ravena-alerta.png` | aba de Alertas e topo das telas de PLD | orelha em pé e olho fixo — é a Ravena quando alguma coisa saiu do lugar |
+
+As duas são PNG de 320×320 com fundo transparente, no padrão dos demais
+(`scripts/recortar_agentes.py` faz o recorte). Trocar o rosto de um agente é
+trocar esses dois arquivos: nenhuma linha de código muda.
 
 ---
 

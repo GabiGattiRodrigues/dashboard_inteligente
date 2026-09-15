@@ -229,14 +229,15 @@ DOMINIO = Dominio(
         "Me mostra o dossiê do cliente T-01160?",
     ],
     agente_nome="Ravena",
-    agente_rosto="🐦‍⬛",
+    agente_rosto="🐕‍🦺",
     agente_genero="f",
     agente_voz="ravena",
     agente_imagem="ravena",
     agente_papel=("Cuido do monitoramento de PLD: das regras que selecionam, "
                   "da fila que precisa caber em 45 dias e de cada cliente que "
                   "se enquadra na Carta Circular 4.001. Trago o indício e a "
-                  "norma — a decisão de comunicar é sempre da analista."),
+                  "norma, sem pressa de concluir — a decisão de comunicar é "
+                  "sempre da analista."),
     extensao="vulcano.pld.agente",
     notas=[
         "DADO SIMULADO. A empresa, os clientes e os estabelecimentos são "
