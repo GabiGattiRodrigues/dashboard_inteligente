@@ -134,6 +134,11 @@ if not exist "data\fato_pld.parquet" (
   "%VPY%" scripts\build_pld.py
 )
 
+if not exist "data\fato_people.parquet" (
+  echo  [ ! ]  Gerando a empresa simulada de People Analytics...
+  "%VPY%" scripts\build_people.py
+)
+
 rem --- Evita o Streamlit parar pedindo e-mail na primeira execucao ----
 if not exist "%USERPROFILE%\.streamlit" mkdir "%USERPROFILE%\.streamlit" >nul 2>&1
 if not exist "%USERPROFILE%\.streamlit\credentials.toml" (

@@ -386,7 +386,12 @@ def interpretar_deterministico(pergunta: str, ctx: Contexto) -> dict[str, Any]:
         plano["intencao"] = "tendencia"
         return plano
 
-    if re.search(r"\b(top|maiores?|menores?|melhores?|piores?|ranking|principais|"
+    # "qual canal TEM MAIS turnover precoce?" e ranking, mesmo sem "maior":
+    # so vale com dimensao citada, senao "tem mais alguma coisa?" viraria
+    # ranking da metrica padrao.
+    tem_mais = bool(dimensao_dita) and re.search(
+        r"\b(tem|tinha|teve|com|concentra|perde|perdendo)\s+(o |a )?(mais|menos)\b", t)
+    if tem_mais or re.search(r"\b(top|maiores?|menores?|melhores?|piores?|ranking|principais|"
                  r"quais as|quais os)\b", t):
         plano["intencao"] = "ranking"
         plano["dimensao"] = plano["dimensao"] or dom.dims_filtro[0]
@@ -396,7 +401,10 @@ def interpretar_deterministico(pergunta: str, ctx: Contexto) -> dict[str, Any]:
             plano["top_n"] = int(m.group(1))
         return plano
 
-    if _contem(t, ["compara", "versus", " vs ", "contra", "mes passado",
+    # Palavra inteira: por substring, "contra" casava dentro de
+    # "contratacao" e "qual canal de contratacao..." virava comparacao.
+    if _contem_palavra(t, ["compara", "comparar", "comparando", "comparado",
+                            "versus", "vs", "contra", "mes passado",
                             "semana passada", "cresceu", "caiu", "subiu", "aumentou",
                             "diminuiu", "piorou", "melhorou", "variou", "variacao"]):
         plano["intencao"] = "comparacao"

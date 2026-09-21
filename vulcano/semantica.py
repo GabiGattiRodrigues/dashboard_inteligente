@@ -64,6 +64,12 @@ class Metrica:
     # Serve para o agente mostrar formula + exemplo numerico quando ha conta --
     # e para nao mostrar nada quando a metrica e so uma soma.
     formula: str = ""
+    # Contagem de evento raro (desligamentos por dia numa empresa de 4 mil
+    # pessoas). Num segmento em que o normal e zero, MAD e amplitude
+    # interquartil sao zero e um unico evento vira z = 99. Com a marca, o
+    # alerta usa como escala minima o desvio de Poisson, raiz(max(mediana, 1)):
+    # sair de 0 para 1 deixa de ser anomalia, sair de 3 para 60 continua sendo.
+    contagem_esparsa: bool = False
 
     @property
     def eh_razao(self) -> bool:

@@ -1,11 +1,12 @@
-# Analytics com agente — quatro domínios, um motor
+# Analytics com agente — cinco domínios, um motor
 
 Produto de analytics em que o agente não é um chatbot colado ao lado do
 dashboard: ele lê a mesma camada semântica que desenha os gráficos, respeita os
 mesmos filtros e devolve o mesmo número, por construção.
 
-Quatro domínios rodam no mesmo motor — **Marketing e CRM**, **Crédito**,
-**Produto e Operação** e **Compliance e PLD** — cada um com o seu próprio
+Cinco domínios rodam no mesmo motor — **Marketing e CRM**, **Crédito**,
+**Produto e Operação**, **Compliance e PLD** e **People Analytics** (em
+construção) — cada um com o seu próprio
 agente, com nome, rosto, personalidade e vocabulário:
 
 | Agente | Domínio | Como fala |
@@ -14,10 +15,11 @@ agente, com nome, rosto, personalidade e vocabulário:
 | **Bailey** 🐶 | Crédito | mais velho e metódico: primeiro a ressalva, depois o número, depois o que fazer |
 | **R2** 🐕 | Produto e Operação | mais velho e muito inteligente: fala pouco e certo, liga as pontas |
 | **Ravena** 🐕‍🦺 | Compliance e PLD | mais velha, calma e vigilante: sem pressa de concluir — o fato, depois a norma, depois o próximo passo, e nunca decide por ninguém |
+| **Tomoyo** 🐾 | People Analytics | gentil e observadora: repara no que mudou antes de alguém reclamar — e firme num ponto só, fala de grupo, nunca de pessoa |
 
 Quem responde sobre crédito não é quem responde sobre marketing, porque as
 ressalvas e o que conta como resposta boa são outros. A personalidade aparece
-no **tom** — nunca no número: os quatro leem o mesmo motor e devolvem o mesmo
+no **tom** — nunca no número: os cinco leem o mesmo motor e devolvem o mesmo
 valor. Cada um tem duas caras: a animada na aba de conversa e a atenta na aba
 de alertas, para a pessoa reconhecer quem está falando sem legenda.
 
@@ -244,6 +246,59 @@ escolhe uma ou outra pelo lugar em que ela aparece:
 As duas são PNG de 320×320 com fundo transparente, no padrão dos demais
 (`scripts/recortar_agentes.py` faz o recorte). Trocar o rosto de um agente é
 trocar esses dois arquivos: nenhuma linha de código muda.
+
+---
+
+## People Analytics — a Tomoyo *(em construção)*
+
+O quinto domínio leva o motor para gente, e a regra muda de novo — só que ao
+contrário da Ravena: aqui o agente **nunca** desce ao indivíduo. People
+Analytics que aponta quem vai sair vira vigilância, e no mês seguinte a
+pesquisa de clima para de ter resposta sincera — o que destrói justamente o
+sinal que a Tomoyo usa.
+
+**O dado é simulado** (`scripts/build_people.py`): uma varejista fictícia de
+~3.700 pessoas, set/2024 – ago/2026, com cinco histórias plantadas que servem
+de gabarito:
+
+| História | O que a Tomoyo precisa encontrar |
+|---|---|
+| Congelamento de mérito em Tecnologia (dez/2025) e onda de saída em Pleno/Sênior (mar–jun/2026) | o **eNPS de Tecnologia cai três meses antes** da onda — o sinal antecedente |
+| Temporários de fim de ano em Lojas e CD (out–nov), canal "Contratação em massa" | turnover precoce alto por canal e a leva de fim de contrato em janeiro |
+| Reestruturação do CD em 12/08/2025 | pico de desligamento involuntário, eNPS do CD despencando, absenteísmo subindo em quem ficou |
+| Gap salarial de gênero de ~30% no bruto | mas ~4% no mesmo nível e área: a maior parte é **composição**, não equiparação |
+| Inverno e Quarta-feira de Cinzas | sazonalidade de absenteísmo |
+
+**O grão é pessoa-dia** — uma linha por pessoa por dia ativo. Parece muito
+(2,8 mi de linhas, 9 MB), e é o que deixa as contas de RH honestas com o motor
+genérico: headcount é média dos dias (e não soma), turnover é desligamento
+sobre a base exposta, anualizado — meses de tamanhos diferentes comparam na
+mesma régua, e o peso de cada área vira o efeito mix da cascata sem nenhuma
+conta especial. **Turnover precoce** (saiu em até 90 dias) é lido na data da
+admissão com a mesma censura da safra de crédito: quem entrou há menos de 90
+dias aparece vazio, nunca zero.
+
+Além do que o motor genérico responde, a Tomoyo tem três intenções próprias
+(`vulcano/people/agente.py`):
+
+- **risco de saída** — `onde tem risco de saída?`: soma de sinais nomeados
+  por área × nível (queda de eNPS, eNPS negativo, turnover acelerando, grupo
+  sem promoção, absenteísmo subindo), com a conta na tabela. Perguntada em
+  fev/2026, antes da onda, já põe Tecnologia no topo — e não olha para depois
+  da data de referência (há teste para isso);
+- **gap ajustado** — `o gap salarial é de cargo ou de composição?`: o bruto do
+  card contra o ajustado por nível × área, e quanto do gap é composição;
+- **pergunta sobre pessoa** — `quem vai pedir demissão?`: recusa com jeito e
+  devolve a leitura do grupo. Recorte com menos de 10 pessoas não aparece.
+
+Dois ajustes no motor vieram com ela, os dois retrocompatíveis: a marca
+`contagem_esparsa` na métrica (desligamento num segmento em que o normal é
+zero não vira z = 99 — a escala mínima passa a ser o desvio de Poisson) e o
+reconhecimento de "qual canal **tem mais** X?" como ranking. E uma correção:
+"contra" era casado por substring, e "contrata**ção**" virava comparação.
+
+**Falta:** o rosto da Tomoyo (`assets/tomoyo-animada.png` e
+`tomoyo-alerta.png`; até lá ela usa 🐾) e o ajuste fino de textos e gráficos.
 
 ---
 
@@ -483,6 +538,7 @@ se a base for atualizada, e fica auditável.
 | Produto e Operação | Mesma base do Olist, lida pela ótica de operação e satisfação | jan/2017 – ago/2018 |
 | Crédito | **Carteira simulada** — ver abaixo | jan/2017 – ago/2018 |
 | Compliance e PLD | **Operação simulada** — ver a seção da Ravena | set/2025 – ago/2026 |
+| People Analytics | **Empresa simulada** — ver a seção da Tomoyo | set/2024 – ago/2026 |
 
 **Sobre o domínio de crédito:** não há base pública de crédito com data de
 originação e marcação de inadimplência disponível, e sem ela não dá para mostrar
@@ -511,6 +567,7 @@ vulcano/
     credito.py
     produto.py
     pld.py
+    people.py
   pld/                      o que só existe em PLD
     regras.py               catálogo: indicador, corte, condições, norma
     normas.py               os trechos da 3.978 e da 4.001 citados na tela
@@ -519,6 +576,8 @@ vulcano/
     agente.py               intenções da Ravena: fila, dossiê, regra
     calendario.py           dias úteis e prazos
     dados.py                tabelas auxiliares do job
+  people/                   o que só existe em People Analytics
+    agente.py               intenções da Tomoyo: risco, gap ajustado, recusa
   dados.py                  montagem de SQL e acesso via DuckDB
   periodos.py               resolução de período e período comparável
   causa_raiz.py             decomposição aditiva e taxa/mix/interação
@@ -533,6 +592,7 @@ scripts/
   build_fact.py             ETL do Olist
   build_credito.py          gerador da carteira simulada
   build_pld.py              gerador da operação de PLD simulada + job de regras
+  build_people.py           gerador da empresa simulada de People Analytics
   exportar_fila.py          CSV da fila para a planilha do Apps Script
   acentuar.py               acentuação do texto (só dentro de literais)
   exportar_amostra.py       roda os motores e exporta o JSON da amostra
@@ -545,10 +605,11 @@ amostra/                    amostra estática de uma página (dados + HTML)
 automacoes/apps_script/     a fila de PLD em Google Sheets, com gatilho e Slack
 tests/test_motor.py         invariantes do motor
 tests/test_pld.py           invariantes de Compliance
+tests/test_people.py        invariantes de People Analytics
 data/                       parquets gerados
 ```
 
-Adicionar um quarto domínio é escrever um arquivo em `vulcano/dominios/` e
+Adicionar um domínio é escrever um arquivo em `vulcano/dominios/` e
 incluí-lo na lista. Nenhum motor precisa ser tocado.
 
 ---

@@ -51,7 +51,7 @@ async function checarErros(page, onde) {
 
   // VULC_DOMINIOS="Compliance e PLD" roda so um dominio.
   const todos = ['Marketing e CRM', 'Crédito', 'Produto e Operação',
-                 'Compliance e PLD'];
+                 'Compliance e PLD', 'People Analytics'];
   const dominios = process.env.VULC_DOMINIOS
     ? todos.filter(d => process.env.VULC_DOMINIOS.split(',').includes(d))
     : todos;

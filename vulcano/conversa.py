@@ -47,10 +47,11 @@ def _tem(t: str, termos: list[str]) -> bool:
 # 1. Conversa social — uma voz por agente
 # --------------------------------------------------------------------------- #
 #
-# Os quatro agentes nao sao o mesmo texto com nome trocado. Abigail e uma gata
+# Os cinco agentes nao sao o mesmo texto com nome trocado. Abigail e uma gata
 # jovem e esperta; Bailey e um cachorro mais velho e metodico; R2 e um cachorro
 # mais velho e muito inteligente; Ravena e uma cadela mais velha, calma e
-# vigilante. A diferenca aparece onde a personalidade aparece de verdade -- no
+# vigilante; Tomoyo e gentil e observadora, e firme num ponto so: fala de
+# grupo, nunca de pessoa. A diferenca aparece onde a personalidade aparece de verdade -- no
 # TOM, no comprimento da frase e no que cada um acha que vale dizer primeiro --,
 # e nunca no numero: os quatro leem o mesmo motor e devolvem o mesmo valor.
 #
@@ -204,6 +205,40 @@ VOZES: dict[str, Voz] = {
                   "cima. Em PLD, resposta apressada vira decisão sobre "
                   "alguém."),
     ),
+    "tomoyo": Voz(
+        tom=("Gentil, atenta e observadora — repara em quem ninguém está "
+             "olhando e no que mudou antes de alguém reclamar. Fala com "
+             "calor, sem pressa e sem jargão de RH. Por trás da doçura é "
+             "firme num ponto: fala de grupo, nunca de pessoa, e diz isso "
+             "sem sermão. Gosta de mostrar o sinal que veio antes — o clima "
+             "que caiu, a promoção que não saiu — porque para ela turnover "
+             "é consequência, não causa."),
+        saudacao=(
+            "Oi! Que bom que você veio. Já olhei como anda o pessoal em "
+            "{dominio} — tem coisa para conversar.",
+            "Oi! Estou com {dominio} aberto, no período da barra lateral. "
+            "Quer começar por quem está saindo ou pelo clima?",
+            "Olá! Tudo pronto por aqui. Pode perguntar do jeito que vier.",
+        ),
+        agradecimento=("Imagina! Cuidar de gente começa por olhar direito.",
+                       "De nada — fico feliz em ajudar.",
+                       "Por nada. Qualquer coisa, estou por aqui."),
+        despedida=("Até! Fico de olho no próximo pulso de clima.",
+                   "Tchau! Se algum grupo começar a dar sinal, eu anoto.",
+                   "Até mais — e cuida do seu time."),
+        como_esta=("Bem, obrigada! E você, como está?",
+                   "Tudo bem por aqui — o clima de hoje está tranquilo. E "
+                   "você?"),
+        elogio=("Ah, obrigada!",
+                "Que bom que ajudou. Se quiser, a gente desce por área ou "
+                "por nível."),
+        convite=("Pergunte à vontade: turnover, clima, contratação, promoção "
+                 "ou salário — por área, nível, gênero ou tempo de casa. Só "
+                 "não pergunte de alguém em específico: eu leio grupo, nunca "
+                 "pessoa."),
+        admissao=("Essa eu não entendi, e prefiro dizer do que responder por "
+                  "cima — número errado sobre gente vira decisão injusta."),
+    ),
 }
 
 # Voz de reserva: dominio novo que ainda nao declarou personalidade nao pode
@@ -282,6 +317,10 @@ FRACOS: dict[str, list[str]] = {
     "PEP": ["pep"],
     "O monitoramento de PLD/FT": ["pld", "compliance"],
     "Como calibrar uma regra": ["parametro", "corte"],
+    "Turnover anualizado": ["turnover", "rotatividade"],
+    "eNPS": ["enps", "e-nps"],
+    "Gap bruto e gap ajustado": ["gap"],
+    "Por que eu só falo de grupo": ["privacidade", "anonimato", "lgpd"],
 }
 
 CONCEITOS: list[tuple[list[str], str, str]] = [
@@ -621,6 +660,58 @@ CONCEITOS += [
      "de repetição. Aqui vale **um alerta por cliente, por regra, por mês** — "
      "o primeiro dia em que o indicador passa do corte. A R10, de CPF "
      "irregular, é a exceção: um alerta por situação irregular."),
+]
+
+
+CONCEITOS += [
+    (["turnover anualizado", "como calcula o turnover", "conta do turnover",
+      "pessoa-dia", "pessoa dia", "rotatividade", "turnover"],
+     "Turnover anualizado",
+     "Turnover aqui é **desligamentos sobre a base exposta, anualizado**: "
+     "`desligamentos × 365 ÷ pessoa-dia ativa`. Lê-se como \"quanto da "
+     "empresa sairia em um ano se o ritmo do período continuasse\".\n\n"
+     "Dois motivos para não usar o \"desligados ÷ headcount do fim do "
+     "mês\" de planilha: a base de fim de mês muda com quem acabou de "
+     "entrar, e meses de tamanhos diferentes não comparam. Pessoa-dia resolve "
+     "os dois — e ainda faz o peso de cada área na base virar o **efeito "
+     "mix** da decomposição. O cuidado é o outro lado: turnover de UM dia é "
+     "ruído (três saídas viram 30% a.a.), então leia em mês ou mais."),
+
+    (["enps", "e-nps", "employee net promoter", "promotor", "detrator",
+      "pesquisa de pulso"],
+     "eNPS",
+     "eNPS é o NPS aplicado a quem trabalha na empresa: \"de 0 a 10, quanto "
+     "você recomendaria trabalhar aqui?\". Nota 9–10 é **promotor**, 0–6 é "
+     "**detrator**, e o eNPS é `(promotores − detratores) × 100 ÷ "
+     "respostas`, de −100 a +100.\n\n"
+     "O que me interessa nele é o **tempo**: clima cai antes de o turnover "
+     "subir, em geral dois a quatro meses antes. Por isso eu leio a queda do "
+     "eNPS por grupo como sinal antecedente de saída — e por isso olho "
+     "quantas respostas o recorte tem antes de afirmar qualquer coisa."),
+
+    (["gap ajustado", "gap bruto", "ajustado por nivel", "ajustado por cargo",
+      "equidade salarial", "gap"],
+     "Gap bruto e gap ajustado",
+     "O **gap bruto** compara o salário médio de todas as mulheres com o de "
+     "todos os homens. Ele mistura duas coisas: pagar diferente pelo mesmo "
+     "cargo e ter menos mulheres nos cargos que pagam mais.\n\n"
+     "O **gap ajustado** compara mulheres e homens **dentro do mesmo nível e "
+     "área** e faz a média ponderada. A diferença entre os dois é a parte de "
+     "composição. É o mesmo raciocínio do efeito taxa vs efeito mix: um pede "
+     "revisão salarial, o outro pede pipeline de promoção e contratação — "
+     "tratar o bruto como se fosse tudo equiparação erra o remédio."),
+
+    (["so fala de grupo", "fala de pessoa", "privacidade", "anonimato",
+      "lgpd", "grupo minimo", "por que nao mostra quem"],
+     "Por que eu só falo de grupo",
+     "Porque People Analytics que aponta quem vai sair vira vigilância — e "
+     "no mês seguinte ninguém responde a pesquisa de clima com sinceridade, "
+     "o que destrói justamente o sinal que eu uso.\n\n"
+     "Então nas minhas leituras próprias (risco de saída, gap ajustado) "
+     "recorte com menos de **10 pessoas** não aparece: com menos que isso, "
+     "\"o salário médio do grupo\" é o salário de alguém. Dado de gente "
+     "também é dado pessoal na LGPD, e o que é sobre saúde (atestado) é "
+     "sensível — mais um motivo para nunca descer ao indivíduo."),
 ]
 
 

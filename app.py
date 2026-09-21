@@ -53,7 +53,7 @@ MARCA_ROSTO = "◆"
 # aviso no topo do painel: esconder até "ficar pronto" é o que faz um projeto
 # de portfólio nunca sair do lugar. Tirar daqui é o passo único para dizer que
 # terminou -- foi o que aconteceu com PLD em set/2026.
-EM_CONSTRUCAO: set[str] = set()
+EM_CONSTRUCAO: set[str] = {"people"}
 
 st.set_page_config(page_title=MARCA, page_icon="📊", layout="wide")
 st.markdown(CSS, unsafe_allow_html=True)
@@ -154,6 +154,20 @@ DECISOES = [
      "histórico, risco — e a conta aparece no dossiê. O prazo anda em coluna "
      "separada, para o caso médio que vence amanhã não sumir. E a decisão de "
      "comunicar nunca é do agente."),
+    ("Por que turnover é sobre pessoa-dia, e não sobre o headcount do mês",
+     "O \"desligados ÷ headcount do fim do mês\" de planilha muda de base com "
+     "quem acabou de entrar e não compara meses de tamanhos diferentes. Com "
+     "uma linha por pessoa por dia ativo, turnover vira desligamentos sobre "
+     "a base exposta, anualizado — e o peso de cada área nessa base vira o "
+     "efeito mix da cascata sem nenhuma conta especial. Headcount, pelo mesmo "
+     "grão, é média dos dias: somar 30 dias contaria cada pessoa 30 vezes."),
+    ("Por que a Tomoyo nunca fala de uma pessoa",
+     "People Analytics que aponta quem vai sair vira vigilância, e no mês "
+     "seguinte a pesquisa de clima para de ter resposta sincera — o que "
+     "destrói o sinal que ela usa. Então o risco de saída é lido por grupo "
+     "(área × nível), com uma soma de sinais nomeados que aparece na tela, e "
+     "recorte com menos de 10 pessoas não aparece: com menos que isso, o "
+     "salário médio do grupo é o salário de alguém."),
 ]
 
 
@@ -238,13 +252,20 @@ O primeiro destes agentes, o Vulcano, nasceu na Petlove para fechar essa fila:
 além dos gráficos, ele decompõe a variação, dispara alerta sozinho quando algo
 foge do padrão e responde pergunta em linguagem natural, no mesmo lugar. Esta
 versão pública reconstrói o produto sobre dados abertos e o estende a outros
-três domínios, para mostrar a arquitetura e as decisões técnicas por trás dele.
+domínios, para mostrar a arquitetura e as decisões técnicas por trás dele.
 
 O quarto, **Compliance e PLD**, leva o mesmo motor para onde a pergunta muda
 de natureza: além de "quantos alertas e quanto vira falso positivo", a analista
 precisa saber **quem**, especificamente, se enquadra em qual situação da Carta
 Circular 4.001 e em quanto tempo vence o prazo de análise. A Ravena responde
 as duas — o agregado pelo motor, o cliente a cliente pela fila e pelo dossiê.
+
+O quinto, **People Analytics**, leva o motor para gente — onde a regra muda de
+novo, só que ao contrário: a Tomoyo **nunca** desce ao indivíduo. Ela lê
+turnover, clima, contratação e remuneração por grupo, separa o gap salarial de
+cargo do gap de composição e procura o sinal que vem antes da saída — o clima
+que caiu, a promoção que não saiu — porque depois do pedido de demissão já é
+tarde.
         """
     )
 
@@ -980,11 +1001,13 @@ def render_dashboard(chave: str) -> None:
 
     if dom.chave in EM_CONSTRUCAO:
         st.markdown(nota(
-            "<b>Domínio em construção.</b> As telas já funcionam ponta a ponta "
-            "— a fila, o dossiê, a calibração e o agente —, mas os textos e os "
-            "gráficos ainda estão em ajuste, e os agentes deste domínio ainda "
-            "não têm rosto. Fica publicado assim de propósito: prefiro mostrar "
-            "em obra a esconder até ficar perfeito."), unsafe_allow_html=True)
+            "<b>Domínio em construção.</b> As telas e "
+            f"{dom.agente_artigo} {dom.agente_nome} já funcionam ponta a "
+            "ponta, mas os textos e os gráficos ainda estão em ajuste"
+            + ("" if avatar_uri(dom.agente_imagem) else
+               f", e {dom.agente_artigo} {dom.agente_nome} ainda não tem rosto")
+            + ". Fica publicado assim de propósito: prefiro mostrar em obra a "
+            "esconder até ficar perfeito."), unsafe_allow_html=True)
     if dom.simulado:
         st.markdown(nota(f"<b>Este domínio usa dado simulado.</b> {dom.fonte}"),
                     unsafe_allow_html=True)

@@ -77,13 +77,20 @@ def _mad(x: np.ndarray) -> float:
     return float(np.nanmedian(np.abs(x - med)))
 
 
-def _z_robusto(valor: float, hist: np.ndarray) -> tuple[float, float]:
-    """Devolve (z robusto, esperado). MAD zero cai para o desvio padrão."""
+def _z_robusto(valor: float, hist: np.ndarray,
+               contagem: bool = False) -> tuple[float, float]:
+    """Devolve (z robusto, esperado). MAD zero cai para o desvio padrão.
+
+    Com `contagem=True` (evento raro, ver Metrica.contagem_esparsa) a escala
+    nunca fica abaixo do desvio de Poisson da mediana.
+    """
     hist = hist[np.isfinite(hist)]
     if len(hist) < 7:
         return 0.0, float("nan")
     med = float(np.nanmedian(hist))
     escala = 1.4826 * _mad(hist)
+    if contagem:
+        escala = max(escala, float(np.sqrt(max(med, 1.0))))
 
     # MAD zero acontece quando mais da metade da janela tem o mesmo valor --
     # serie muito plana, ou com poucos valores distintos. Cair no desvio padrao
@@ -148,7 +155,8 @@ def varrer(
         if pd.isna(val):
             continue
         val = float(val)
-        z, esp = _z_robusto(val, hist[mk].to_numpy(dtype=float))
+        z, esp = _z_robusto(val, hist[mk].to_numpy(dtype=float),
+                            contagem=m.contagem_esparsa)
 
         if abs(z) >= z_limite and np.isfinite(esp):
             piorou = (z < 0) if m.bom_quando_sobe else (z > 0)
@@ -226,7 +234,7 @@ def varrer(
                 peso_bruto = float(linha.iloc[0][coluna_peso] or 0)
 
                 hs = h_seg[h_seg[d.coluna] == seg][mk].to_numpy(dtype=float)
-                z, esp = _z_robusto(val, hs)
+                z, esp = _z_robusto(val, hs, contagem=m.contagem_esparsa)
                 if not np.isfinite(esp) or abs(z) < z_limite:
                     continue
 
@@ -333,6 +341,8 @@ def ultimo_dia_com_alerta(
         # MAD zero (serie muito plana na janela) cai para o desvio padrao.
         alternativa = v.rolling(dias_historico, min_periods=14).std().shift(1)
         escala = escala.where(escala > 1e-9, alternativa)
+        if dom.metrica(mk).contagem_esparsa:
+            escala = np.maximum(escala, np.sqrt(med.clip(lower=1.0)))
 
         z = (v - med) / escala
         marcado |= z.abs() >= z_limite
