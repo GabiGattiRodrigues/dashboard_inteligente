@@ -155,6 +155,15 @@ class Dominio:
     # numa métrica agregada.
     extensao: str = ""
 
+    # Como conversar com o agente DESTE domínio: exemplos de uma conversa de
+    # verdade, com continuação, no vocabulário do domínio. Cada linha é
+    # (o que você pergunta, o que o agente faz). Existe porque um roteiro
+    # único, com "receita" para todo mundo, ensinava a perguntar ao Bailey
+    # uma métrica que ele não tem.
+    guia_conversa: tuple[tuple[str, str], ...] = ()
+    # Uma dica específica do domínio, que vai logo depois do roteiro.
+    dica_conversa: str = ""
+
     # -- consultas ao catalogo --------------------------------------------- #
 
     # -- concordancia com o nome do agente --------------------------------- #

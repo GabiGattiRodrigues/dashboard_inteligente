@@ -40,8 +40,15 @@ import numpy as np
 import pandas as pd
 
 from .dados import Filtros, agregar, serie_diaria
+from . import i18n
 from .formatacao import numero, pct
+from .i18n import L, V
 from .semantica import Dominio, Limite
+
+
+def nome_severidade(sev: str) -> str:
+    return {"alta": L("alta", "high"), "media": L("média", "medium"),
+            "baixa": L("baixa", "low")}.get(sev, sev)
 
 
 @dataclass
@@ -167,14 +174,19 @@ def varrer(
                 chave_metrica=mk, dimensao=None, segmento=None, data=ref,
                 observado=val, esperado=esp, z=z,
                 impacto=val - esp, participacao=1.0,
-                texto=(
+                texto=L(
                     f"**{m.rotulo}** no total fechou em {numero(val, m)}, contra "
                     f"{numero(esp, m)} esperados pelo histórico de "
-                    f"{dias_historico} dias (z robusto = {z:+.1f})."
+                    f"{dias_historico} dias (z robusto = {z:+.1f}).",
+                    f"**{m.rotulo}** in total closed at {numero(val, m)}, "
+                    f"against {numero(esp, m)} expected from the "
+                    f"{dias_historico}-day history (robust z = {z:+.1f})."
                 ),
-                acao=(
+                acao=L(
                     "Abrir a aba de causa raiz para esta métrica e ver qual "
-                    "segmento carrega a variação antes de acionar alguém."
+                    "segmento carrega a variação antes de acionar alguém.",
+                    "Open the root cause tab for this metric and see which "
+                    "segment carries the change before calling anyone."
                 ),
             ))
 
@@ -188,11 +200,16 @@ def varrer(
                     chave_metrica=mk, dimensao=None, segmento=None, data=ref,
                     observado=val, esperado=lim.valor, z=0.0,
                     impacto=val - lim.valor, participacao=1.0,
-                    texto=(
+                    texto=L(
                         f"**{m.rotulo}** em {numero(val, m)} rompeu o limite "
-                        f"combinado de {numero(lim.valor, m)}. {lim.justificativa}"
+                        f"combinado de {numero(lim.valor, m)}. {lim.justificativa}",
+                        f"**{m.rotulo}** at {numero(val, m)} broke the agreed "
+                        f"limit of {numero(lim.valor, m)}. {lim.justificativa}"
                     ),
-                    acao="Limite de negócio, não estatístico: acionar o dono da métrica.",
+                    acao=L("Limite de negócio, não estatístico: acionar o "
+                           "dono da métrica.",
+                           "A business limit, not a statistical one: call "
+                           "the metric owner."),
                 ))
 
     # ---------------- por segmento ----------------------------------------- #
@@ -251,17 +268,25 @@ def varrer(
                     chave_metrica=mk, dimensao=dk, segmento=seg, data=ref,
                     observado=val, esperado=esp, z=z,
                     impacto=(val - esp), participacao=part,
-                    texto=(
+                    texto=L(
                         f"**{m.rotulo}** em *{seg}* ({d.rotulo.lower()}) fechou em "
                         f"{numero(val, m)}, contra {numero(esp, m)} esperados "
                         f"(z robusto = {z:+.1f}). O segmento responde por "
                         f"{pct(part, 1, sinal=False)} "
                         + ("da base da métrica no dia." if m.eh_razao
-                           else "da métrica no dia.")
+                           else "da métrica no dia."),
+                        f"**{m.rotulo}** in *{V(seg)}* ({d.rotulo.lower()}) "
+                        f"closed at {numero(val, m)}, against "
+                        f"{numero(esp, m)} expected (robust z = {z:+.1f}). "
+                        f"The segment accounts for {pct(part, 1, sinal=False)} "
+                        + ("of the metric's base on the day." if m.eh_razao
+                           else "of the metric on the day.")
                     ),
-                    acao=(
+                    acao=L(
                         f"Segmento material e fora do padrão: vale olhar "
-                        f"{d.rotulo.lower()} = {seg} na aba de causa raiz."
+                        f"{d.rotulo.lower()} = {seg} na aba de causa raiz.",
+                        f"A material segment out of pattern: worth looking at "
+                        f"{d.rotulo.lower()} = {V(seg)} in the root cause tab."
                     ),
                 ))
 
@@ -272,20 +297,27 @@ def varrer(
 def resumir(alertas: list[Alerta], ref: date) -> str:
     """Uma linha de abertura, para quem só vai ler o topo da tela."""
     if not alertas:
-        return (
-            f"Nenhum alerta em {ref.strftime('%d/%m/%Y')}: todas as métricas "
+        return L(
+            f"Nenhum alerta em {i18n.data(ref)}: todas as métricas "
             f"acompanhadas ficaram dentro da faixa histórica e dos limites "
-            f"combinados. Silêncio aqui é informação, não ausência de checagem."
+            f"combinados. Silêncio aqui é informação, não ausência de checagem.",
+            f"No alerts on {i18n.data(ref)}: every tracked metric stayed "
+            f"within its historical range and the agreed limits. Silence here "
+            f"is information, not a missing check."
         )
     altas = [a for a in alertas if a.severidade == "alta"]
     limites = [a for a in alertas if a.tipo == "limite"]
     n = len(alertas)
-    partes = [f"**{n} {'alerta' if n == 1 else 'alertas'}** em "
-              f"{ref.strftime('%d/%m/%Y')}"]
+    partes = [L(f"**{n} {'alerta' if n == 1 else 'alertas'}** em "
+                f"{i18n.data(ref)}",
+                f"**{n} {'alert' if n == 1 else 'alerts'}** on "
+                f"{i18n.data(ref)}")]
     if altas:
-        partes.append(f"{len(altas)} de severidade alta")
+        partes.append(L(f"{len(altas)} de severidade alta",
+                        f"{len(altas)} of high severity"))
     if limites:
-        partes.append(f"{len(limites)} por rompimento de limite de negócio")
+        partes.append(L(f"{len(limites)} por rompimento de limite de negócio",
+                        f"{len(limites)} from a broken business limit"))
     return ", ".join(partes) + "."
 
 
@@ -364,8 +396,8 @@ def ultimo_dia_com_alerta(
 # --------------------------------------------------------------------------- #
 
 def _br_num(x: float, casas: int = 1) -> str:
-    """Número no padrão brasileiro. 2.3 vira 2,3."""
-    return f"{x:.{casas}f}".replace(".", ",")
+    """Número no padrão da língua ativa. 2.3 vira 2,3 em português."""
+    return i18n.num(x, casas)
 
 
 def _base_por_segmento(
@@ -497,46 +529,79 @@ def motivo_provavel(
     desproporcao, dk, topo, total, peso, normal = melhor
     d = dom.dimensao(dk)
     if peso < 0.25:
-        return (f"O desvio está **espalhado**: nenhum(a) {d.rotulo.lower()} "
-                f"responde por mais de {pct(peso, 0, sinal=False)} dele. "
-                f"Isso aponta causa geral — calendário, campanha ampla ou "
-                f"mudança de sistema — e não um segmento específico.")
+        return L(f"O desvio está **espalhado**: nenhum(a) {d.rotulo.lower()} "
+                 f"responde por mais de {pct(peso, 0, sinal=False)} dele. "
+                 f"Isso aponta causa geral — calendário, campanha ampla ou "
+                 f"mudança de sistema — e não um segmento específico.",
+                 f"The deviation is **spread out**: no {d.rotulo.lower()} "
+                 f"accounts for more than {pct(peso, 0, sinal=False)} of it. "
+                 f"That points to a general cause — calendar, a broad "
+                 f"campaign or a system change — not a specific segment.")
 
-    sentido = "puxou para cima" if topo["contrib"] > 0 else "puxou para baixo"
+    seg = V(topo["segmento"])
+    sentido = L("puxou para cima" if topo["contrib"] > 0 else "puxou para baixo",
+                "pulled up" if topo["contrib"] > 0 else "pulled down")
     # Participacao acima de 100% e legitima e acontece quando outros segmentos
     # puxaram para o lado contrario: o segmento carregou mais do que o desvio
     # liquido. Dizer so "110% do desvio" soa como erro de conta; vale explicar.
-    quanto = (f"{pct(peso, 0, sinal=False)} do desvio" if peso <= 1.0 else
-              f"mais do que todo o desvio líquido ({pct(peso, 0, sinal=False)}) "
-              f"— outros segmentos puxaram no sentido contrário")
+    if peso <= 1.0:
+        quanto = L(f"{pct(peso, 0, sinal=False)} do desvio",
+                   f"{pct(peso, 0, sinal=False)} of the deviation")
+    else:
+        quanto = L(f"mais do que todo o desvio líquido "
+                   f"({pct(peso, 0, sinal=False)}) — outros segmentos puxaram "
+                   f"no sentido contrário",
+                   f"more than the whole net deviation "
+                   f"({pct(peso, 0, sinal=False)}) — other segments pulled "
+                   f"the opposite way")
     # Quando varios motivos aparecem juntos (analise geral), sem o nome da
     # metrica o leitor nao sabe de qual alerta cada paragrafo esta falando.
-    abre = (f"**Possível motivo — {m.rotulo.lower()}:**" if nomear_metrica
-            else "**Possível motivo:**")
-    frase = (
-        f"{abre} {d.rotulo.lower()} **{topo['segmento']}** "
-        f"{sentido} {quanto}, saindo de "
-        f"{numero(float(topo['de']), m)} para {numero(float(topo['para']), m)} "
-        f"(base: média dos {dias_base} mesmos dias da semana anteriores)."
+    if nomear_metrica:
+        abre = L(f"**Possível motivo — {m.rotulo.lower()}:**",
+                 f"**Likely cause — {m.rotulo.lower()}:**")
+    else:
+        abre = L("**Possível motivo:**", "**Likely cause:**")
+    de, para = numero(float(topo['de']), m), numero(float(topo['para']), m)
+    frase = L(
+        f"{abre} {d.rotulo.lower()} **{seg}** {sentido} {quanto}, saindo de "
+        f"{de} para {para} (base: média dos {dias_base} mesmos dias da semana "
+        f"anteriores).",
+        f"{abre} {d.rotulo.lower()} **{seg}** {sentido} {quanto}, going from "
+        f"{de} to {para} (baseline: average of the previous {dias_base} same "
+        f"weekdays)."
     )
     if normal < 0.01:
         # Segmento que praticamente não existia na base: a razão "fatia do
         # desvio ÷ fatia normal" explode (1.120.228×) e vira ruído na tela.
-        frase += (" Esse segmento quase não aparece na métrica no dia a dia — "
-                  "o desvio nasce praticamente todo nele, e é aí que vale "
-                  "olhar primeiro.")
+        frase += L(" Esse segmento quase não aparece na métrica no dia a dia "
+                   "— o desvio nasce praticamente todo nele, e é aí que vale "
+                   "olhar primeiro.",
+                   " This segment barely shows up in the metric day to day — "
+                   "the deviation is born almost entirely in it, and that's "
+                   "where to look first.")
     elif desproporcao >= 1.6:
-        frase += (f" Esse segmento normalmente responde por apenas "
-                  f"{pct(normal, 0, sinal=False)} da métrica — ou seja, ele "
-                  f"pesa {_br_num(desproporcao)}× mais no desvio do que pesa "
-                  f"no dia a dia. É aí que vale olhar primeiro.")
+        frase += L(f" Esse segmento normalmente responde por apenas "
+                   f"{pct(normal, 0, sinal=False)} da métrica — ou seja, ele "
+                   f"pesa {_br_num(desproporcao)}× mais no desvio do que pesa "
+                   f"no dia a dia. É aí que vale olhar primeiro.",
+                   f" This segment normally accounts for only "
+                   f"{pct(normal, 0, sinal=False)} of the metric — so it "
+                   f"weighs {_br_num(desproporcao)}× more in the deviation "
+                   f"than it does day to day. That's where to look first.")
     else:
-        frase += (f" Ressalva: o segmento já responde por "
-                  f"{pct(normal, 0, sinal=False)} da métrica no normal, então "
-                  f"ele aparecer no topo diz pouco — o desvio acompanha a "
-                  f"composição da base, e não se concentra num lugar.")
+        frase += L(f" Ressalva: o segmento já responde por "
+                   f"{pct(normal, 0, sinal=False)} da métrica no normal, então "
+                   f"ele aparecer no topo diz pouco — o desvio acompanha a "
+                   f"composição da base, e não se concentra num lugar.",
+                   f" Caveat: the segment already accounts for "
+                   f"{pct(normal, 0, sinal=False)} of the metric normally, so "
+                   f"it showing up on top says little — the deviation follows "
+                   f"the base's composition and isn't concentrated anywhere.")
     if m.eh_razao and abs(float(topo["efeito_mix"])) > abs(float(topo["efeito_taxa"])):
-        frase += (" A maior parte vem de **mudança de composição**, não do "
-                  "segmento em si ter mudado de patamar — o que aponta "
-                  "aquisição, e não operação.")
+        frase += L(" A maior parte vem de **mudança de composição**, não do "
+                   "segmento em si ter mudado de patamar — o que aponta "
+                   "aquisição, e não operação.",
+                   " Most of it comes from a **change in composition**, not "
+                   "from the segment itself changing level — which points to "
+                   "acquisition, not operations.")
     return frase

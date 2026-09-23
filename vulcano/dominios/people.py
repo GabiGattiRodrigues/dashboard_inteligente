@@ -277,6 +277,20 @@ DOMINIO = Dominio(
                   "pessoa — e procuro o sinal que avisa antes da saída, "
                   "porque depois do pedido de demissão já é tarde."),
     extensao="vulcano.people.agente",
+    guia_conversa=(
+        ("qual o turnover voluntário?", "dá a taxa anualizada do período "
+                                        "selecionado"),
+        ("e por quê?", "decompõe a variação por área e separa efeito taxa de "
+                       "efeito mix"),
+        ("e por nível?", "refaz a mesma leitura quebrada por nível"),
+        ("onde tem risco de saída?", "lê os sinais que vêm antes do pedido de "
+                                     "demissão, por grupo de área e nível"),
+        ("o gap salarial é de cargo ou de composição?",
+         "separa o gap bruto do ajustado por nível e área"),
+    ),
+    dica_conversa=("Eu leio grupo, nunca pessoa: pergunta sobre alguém em "
+                   "específico recebe a leitura do grupo, e recorte com menos "
+                   "de 10 pessoas não aparece nas minhas respostas."),
     notas=[
         "DADO SIMULADO. A empresa e as pessoas são fictícias.",
         "Grão pessoa-dia: headcount é média dos dias e turnover é anualizado "
@@ -292,3 +306,215 @@ DOMINIO = Dominio(
         f"recorte com menos de {GRUPO_MINIMO} pessoas não é mostrado.",
     ],
 )
+
+
+# --------------------------------------------------------------------------- #
+# English
+# --------------------------------------------------------------------------- #
+
+EN = {
+    "nome": "People Analytics",
+    "subtitulo": "Turnover, engagement, recruiting and pay",
+    "descricao": (
+        "Who comes in, who leaves, why — and what warned us before. The "
+        "dashboard for whoever looks after people and needs to tell an exit "
+        "wave from noise, a job-level pay gap from a composition gap, and an "
+        "engagement signal from a false alarm."
+    ),
+    "fonte": (
+        "SIMULATED DATA. There is no public HR dataset with a timeline (the "
+        "well-known ones, like IBM HR Attrition, are a snapshot without "
+        "dates), so the company — a fictional retailer with ~3,700 people — "
+        "was generated with a declared structure: year-end temporary staff, a "
+        "distribution-center restructuring in Aug 2025, a merit freeze in "
+        "Technology and the exit wave that followed. The modeling is real; "
+        "the data is not."
+    ),
+    "metricas": {
+        "headcount": ("Average headcount",
+                      "Average number of active people per day in the period. "
+                      "It is an average, not a sum: summing 30 days of "
+                      "headcount would count each person 30 times.",
+                      "Active people summed day by day ÷ Days in the period"),
+        "admissoes": ("Hires", "People hired in the period."),
+        "desligamentos": ("Terminations",
+                          "People who left in the period, voluntarily or "
+                          "not."),
+        "turnover": ("Turnover (annualized)",
+                     "Terminations over the exposed base, annualized: how "
+                     "much of the company would leave in a year if the "
+                     "period's pace continued.",
+                     "Terminations × 365 ÷ Active person-days"),
+        "turnover_voluntario": ("Voluntary turnover (annualized)",
+                                "Only people who chose to leave, annualized. "
+                                "The turnover that speaks of engagement, "
+                                "leadership and the market.",
+                                "Resignations × 365 ÷ Active person-days"),
+        "turnover_involuntario": ("Involuntary turnover (annualized)",
+                                  "Terminations initiated by the company, "
+                                  "including end of temporary contracts, "
+                                  "annualized.",
+                                  "Company-initiated terminations × 365 ÷ "
+                                  "Active person-days"),
+        "turnover_precoce": ("Early turnover (90 days)",
+                             "Of the people hired in the period, how many "
+                             "left within 90 days. Read on the HIRE date: "
+                             "only cohorts with 90 full days count.",
+                             "Hires who left within 90 days ÷ Hires in mature "
+                             "cohorts"),
+        "absenteismo": ("Absenteeism",
+                        "Unplanned absence hours over scheduled working hours "
+                        "on business days.",
+                        "Absence hours ÷ Scheduled hours"),
+        "enps": ("eNPS", "Employee Net Promoter Score from the monthly pulse "
+                         "survey: ranges from −100 to +100.",
+                 "(Promoters − Detractors) × 100 ÷ Responses"),
+        "respostas_enps": ("eNPS responses",
+                           "Pulse-survey responses in the period. Tells "
+                           "whether a slice's eNPS has enough people to be "
+                           "read."),
+        "tempo_contratacao": ("Time to hire",
+                              "Calendar days between opening the position and "
+                              "the hire, on average.",
+                              "Sum of days the position was open ÷ Hires"),
+        "custo_contratacao": ("Cost per hire",
+                              "Job ads, agencies, medical exams and interview "
+                              "hours, per person hired.",
+                              "Recruiting cost ÷ Hires"),
+        "aceite_oferta": ("Offer acceptance",
+                          "Of the offers made, how many were accepted. Falls "
+                          "when the market pays more than the company.",
+                          "Hires ÷ Offers made"),
+        "taxa_promocao": ("Promotions (annualized)",
+                          "Promotions over the exposed base, annualized. "
+                          "Concentrated in the March and September cycles.",
+                          "Promotions × 365 ÷ Active person-days"),
+        "salario_medio": ("Average salary",
+                          "Average monthly base salary of those active in the "
+                          "period.",
+                          "Sum of each day's salaries ÷ Active person-days"),
+        "gap_genero": ("Gender pay gap (raw)",
+                       "How far women's average salary sits below men's, with "
+                       "no adjustment. It mixes two things: paying differently "
+                       "for the same job and having fewer women in the "
+                       "higher-paying jobs. The adjusted gap separates them.",
+                       "1 − Women's average salary ÷ Men's average salary"),
+    },
+    "dimensoes": {
+        "area": ("Area", "The person's area."),
+        "nivel": ("Level", "Job level on the day. Changes with promotion."),
+        "genero": ("Gender", "Gender declared in the HR record."),
+        "regime": ("Work arrangement", "On-site, hybrid or remote."),
+        "regiao": ("Region", "Work location region."),
+        "canal": ("Hiring channel", "Where the person was hired from."),
+        "faixa_tempo_casa": ("Tenure", "Tenure band on the day."),
+        "faixa_etaria": ("Age band", "Age band on the day."),
+        "safra_admissao": ("Hire cohort",
+                           "Month of hire. People already at the company when "
+                           "the base starts show up as 'Before Sep 2024'."),
+    },
+    "limites": [
+        "Absenteeism above 4.5% on a day is the threshold agreed with "
+        "Operations to call local leadership the same day.",
+    ],
+    "sinonimos_metrica": {
+        "headcount": ["headcount", "head count", "how many people",
+                      "employees", "staff", "workforce", "team size"],
+        "admissoes": ["hire", "hires", "hiring", "new hires", "hired",
+                      "joiners"],
+        "desligamentos": ["termination", "terminations", "exits", "leavers",
+                          "how many left", "who left", "separations"],
+        "turnover": ["total turnover", "overall turnover", "churn rate"],
+        "turnover_voluntario": ["turnover", "voluntary turnover",
+                                "losing people", "losing the most people",
+                                "loses the most people", "resignations",
+                                "resigning", "quitting", "quits", "attrition",
+                                "voluntary exits"],
+        "turnover_involuntario": ["involuntary turnover", "layoff", "layoffs",
+                                  "fired", "dismissals",
+                                  "company-initiated exits",
+                                  "end of contract"],
+        "turnover_precoce": ["early turnover", "early exits", "90 days",
+                             "probation", "probation period",
+                             "new-hire retention", "early attrition"],
+        "absenteismo": ["absenteeism", "absences", "absence", "sick days",
+                        "sick leave", "missed days"],
+        "enps": ["enps", "e-nps", "engagement", "climate", "satisfaction",
+                 "employee satisfaction", "pulse survey", "morale"],
+        "respostas_enps": ["responses", "response rate", "how many responses",
+                           "survey participation"],
+        "tempo_contratacao": ["time to hire", "time to fill",
+                              "hiring time", "days to hire"],
+        "custo_contratacao": ["cost per hire", "hiring cost",
+                              "recruiting cost"],
+        "aceite_oferta": ["offer acceptance", "acceptance rate",
+                          "offers accepted", "offer declines"],
+        "taxa_promocao": ["promotion", "promotions", "promotion rate",
+                          "promoted", "career", "mobility"],
+        "salario_medio": ["salary", "average salary", "pay", "compensation",
+                          "payroll", "wages"],
+        "gap_genero": ["gap", "pay gap", "gender pay gap", "gender gap",
+                       "pay equity", "wage gap", "pay inequality"],
+    },
+    "sinonimos_dimensao": {
+        "area": ["area", "areas", "department", "departments", "division",
+                 "team"],
+        "nivel": ["level", "levels", "seniority", "job level", "grade"],
+        "genero": ["gender", "sex", "women", "men"],
+        "regime": ["work arrangement", "remote", "hybrid", "on-site",
+                   "work model"],
+        "regiao": ["region", "regions", "location"],
+        "canal": ["hiring channel", "channel", "hiring source", "source",
+                  "referral", "agency"],
+        "faixa_tempo_casa": ["tenure", "time at the company", "seniority band"],
+        "faixa_etaria": ["age", "age band", "age group", "generation"],
+        "safra_admissao": ["cohort", "cohorts", "hire cohort", "hire month",
+                           "class of"],
+    },
+    "perguntas_exemplo": [
+        "What is voluntary turnover in the period?",
+        "Which area is losing the most people?",
+        "Where is there flight risk in the coming months?",
+        "Is the gender pay gap about job level or composition?",
+        "Why did eNPS change vs last month?",
+        "Which hiring channel has the most early turnover?",
+        "Is absenteeism growing?",
+    ],
+    "agente_papel": (
+        "I look after people: who joins, who leaves, how engagement is doing "
+        "and whether the pay scale is fair. I always read groups, never "
+        "individuals — and I look for the signal that warns before an exit, "
+        "because after the resignation letter it is too late."
+    ),
+    "guia_conversa": [
+        ("what's the voluntary turnover?",
+         "gives the annualized rate for the selected period"),
+        ("and why?", "breaks the change down by area and separates rate "
+                     "effect from mix effect"),
+        ("and by level?", "redoes the same reading, split by level"),
+        ("where is there flight risk?",
+         "reads the signals that come before a resignation, by area × level "
+         "group"),
+        ("is the pay gap about job level or composition?",
+         "separates the raw gap from the gap adjusted by level and area"),
+    ],
+    "dica_conversa": (
+        "I read groups, never people: a question about someone specific gets "
+        "the group's reading back, and slices with fewer than 10 people don't "
+        "show up in my answers."
+    ),
+    "notas": [
+        "SIMULATED DATA. The company and the people are fictional.",
+        "Person-day grain: headcount is the average of the days and turnover "
+        "is annualized over the exposed base. A 28-day month and a 31-day "
+        "month compare on the same scale.",
+        "Early turnover is read on the hire date, with mature cohorts only: "
+        "people hired less than 90 days before Aug 31, 2026 show up empty, "
+        "never zero. That is why the series ends in May 2026.",
+        "One day of turnover is noise (three exits become 30% annualized). "
+        "Read it by full month or longer; the daily alert watches the count "
+        "of terminations, not the rate.",
+        f"Tomoyo only answers about groups. In her own answers, slices with "
+        f"fewer than {GRUPO_MINIMO} people are not shown.",
+    ],
+}

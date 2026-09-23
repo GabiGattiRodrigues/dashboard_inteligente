@@ -71,23 +71,29 @@ def fatores(regras_abertas: list[str], valor: float, risco: str,
     """A conta da prioridade, fator a fator. A soma é a prioridade."""
     ids = sorted(set(regras_abertas))
     mais_grave = max(ids, key=lambda r: REGRAS[r].gravidade) if ids else None
+    from ..i18n import L, V
     saida: list[tuple[str, float]] = []
     if mais_grave:
-        saida.append((f"Regra mais grave aberta: {REGRAS[mais_grave].rotulo}",
+        saida.append((L("Regra mais grave aberta: ", "Most severe open rule: ")
+                      + REGRAS[mais_grave].local.rotulo,
                       float(REGRAS[mais_grave].gravidade)))
-    saida.append(("Valor envolvido", pontos_valor(valor)))
+    saida.append((L("Valor envolvido", "Amount involved"), pontos_valor(valor)))
     if len(ids) > 1:
-        saida.append((f"{len(ids)} regras distintas abertas",
+        saida.append((L(f"{len(ids)} regras distintas abertas",
+                        f"{len(ids)} distinct rules open"),
                       float(min(20, 10 * (len(ids) - 1)))))
     if reincidente:
-        saida.append(("Já comunicado ao Coaf antes", 10.0))
+        saida.append((L("Já comunicado ao Coaf antes",
+                        "Previously reported to COAF"), 10.0))
     if PONTOS_RISCO.get(risco, 0):
-        saida.append((f"Risco cadastral {risco.lower()}",
+        saida.append((L(f"Risco cadastral {risco.lower()}",
+                        f"{V(risco)} customer risk rating"),
                       float(PONTOS_RISCO[risco])))
     if pep:
-        saida.append(("Pessoa exposta politicamente", 5.0))
+        saida.append((L("Pessoa exposta politicamente",
+                        "Politically exposed person"), 5.0))
     if fronteira:
-        saida.append(("Região de fronteira", 5.0))
+        saida.append((L("Região de fronteira", "Border region"), 5.0))
     return saida
 
 

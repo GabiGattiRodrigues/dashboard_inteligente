@@ -61,14 +61,15 @@ class Parametro:
         return v
 
     def formatar(self, v: Optional[float] = None) -> str:
+        from .. import i18n
         v = self.valor if v is None else v
         if self.unidade == "R$":
-            return "R$ " + f"{v:,.0f}".replace(",", ".")
+            return i18n.brl(v)
         if self.unidade == "%":
             return f"{v * 100:.0f}%"
         if self.unidade == "×":
-            return f"{v:g}×".replace(".", ",")
-        return f"{v:g} {self.unidade}"
+            return f"{v:g}×" if i18n.en() else f"{v:g}×".replace(".", ",")
+        return f"{v:g} {self.unidade}".strip()
 
 
 @dataclass(frozen=True)
@@ -97,6 +98,12 @@ class Regra:
         from .normas import TRECHOS
         t = TRECHOS[self.enquadramento[0]]
         return t.dispositivo.replace("art. 1º, ", "")
+
+    @property
+    def local(self) -> "Regra":
+        """A regra na língua ativa (nome, indicador, condições, racional)."""
+        from .en import regra
+        return regra(self)
 
 
 LIMITE_PIX = 5_000.0   # limite interno por transação Pix da conta simulada

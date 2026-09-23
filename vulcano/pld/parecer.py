@@ -33,6 +33,9 @@ from ..semantica import Dominio
 from . import dados as pld_dados
 from .calendario import PRAZO_ANALISE_DIAS, prazo_analise
 from .fila import comunicados_ate, fatores, prioridade
+from .. import i18n
+from ..i18n import L, V
+from .en import evidencia as ev_local, verificar
 from .normas import citar
 from .regras import REGRAS
 
@@ -61,11 +64,11 @@ VERIFICAR = {
 
 
 def _brl(v: float) -> str:
-    return "R$ " + f"{v:,.0f}".replace(",", ".")
+    return i18n.brl(v)
 
 
 def _data(d: date) -> str:
-    return d.strftime("%d/%m/%Y")
+    return i18n.data(d)
 
 
 @dataclass
@@ -112,6 +115,9 @@ def montar(con: duckdb.DuckDBPyConnection, dom: Dominio, cliente_id: str,
     historico = todos[~aberto].copy()
 
     p0 = todos.iloc[0]
+    # As CHAVES do cabeçalho ficam em português: o resto do código lê
+    # d.cabecalho["PEP"], ["Área"]... Os VALORES também ficam como no dado
+    # (a regra compara "Fronteira"); quem mostra traduz com `rotulos_cabecalho`.
     cab = {"Código": p0["codigo"], "Documento": p0["doc_mascarado"],
            "Tipo": p0["tipo_cliente"], "Segmento": p0["segmento"],
            "UF": p0["uf"], "Área": p0["area"],
@@ -142,116 +148,180 @@ def montar(con: duckdb.DuckDBPyConnection, dom: Dominio, cliente_id: str,
     return d
 
 
+ROTULOS_CABECALHO_EN = {"Código": "Code", "Documento": "Document",
+                        "Tipo": "Type", "Segmento": "Segment", "UF": "State",
+                        "Área": "Area", "Risco cadastral": "Risk rating",
+                        "PEP": "PEP"}
+
+
+def rotulos_cabecalho(cab: dict) -> dict:
+    """O cabeçalho do dossiê como ele aparece na tela, na língua ativa."""
+    if not i18n.en():
+        return dict(cab)
+    return {ROTULOS_CABECALHO_EN.get(k, k): V(v) for k, v in cab.items()}
+
+
 def _leitura(d: Dossie) -> list[str]:
     """Os sinais em conjunto — sem decidir por ninguém."""
     ids = sorted(set(d.abertos["regra_id"]))
     compartilhadas = d.contrapartes[d.contrapartes["compartilhada"] > 0]
     sinais = []
     if len(ids) > 1:
-        sinais.append(f"{len(ids)} regras independentes abertas ao mesmo tempo "
-                      f"({', '.join(ids)})")
+        sinais.append(L(f"{len(ids)} regras independentes abertas ao mesmo "
+                        f"tempo ({', '.join(ids)})",
+                        f"{len(ids)} independent rules open at the same time "
+                        f"({', '.join(ids)})"))
     if not compartilhadas.empty:
         maior = int(compartilhadas["compartilhada"].max())
-        sinais.append(f"contraparte que também aparece em {maior} outro(s) "
-                      f"cliente(s) com alerta")
+        sinais.append(L(f"contraparte que também aparece em {maior} outro(s) "
+                        f"cliente(s) com alerta",
+                        f"a counterparty that also shows up in {maior} other "
+                        f"client(s) with alerts"))
     if d.reincidente:
-        sinais.append("cliente já comunicado ao Coaf anteriormente")
+        sinais.append(L("cliente já comunicado ao Coaf anteriormente",
+                        "client previously reported to COAF"))
     if d.cabecalho["PEP"] == "PEP":
-        sinais.append("titular qualificado como PEP")
+        sinais.append(L("titular qualificado como PEP",
+                        "account holder qualified as a PEP"))
     if d.cabecalho["Área"] == "Fronteira":
-        sinais.append("operação em região de fronteira")
+        sinais.append(L("operação em região de fronteira",
+                        "activity in a border region"))
 
     if not ids:
-        return ["Não há alerta aberto para este cliente nesta data."]
+        return [L("Não há alerta aberto para este cliente nesta data.",
+                  "There is no open alert for this client on this date.")]
+    decide = L("A decisão é da analista.", "The decision is the analyst's.")
     if len(sinais) >= 2:
         return [
-            "**Os sinais convergem:** " + "; ".join(sinais) + ".",
-            "Indícios independentes apontando para o mesmo lugar sustentam "
-            "aprofundar a análise e avaliar a comunicação. A decisão é da "
-            "analista.",
+            L("**Os sinais convergem:** ", "**The signals converge:** ")
+            + "; ".join(sinais) + ".",
+            L("Indícios independentes apontando para o mesmo lugar sustentam "
+              "aprofundar a análise e avaliar a comunicação. ",
+              "Independent red flags pointing to the same place support "
+              "deepening the analysis and assessing a report. ") + decide,
         ]
     if sinais:
         return [
-            "**Há um sinal além da regra:** " + sinais[0] + ".",
-            "Vale cumprir as verificações abaixo antes de concluir. A decisão "
-            "é da analista.",
+            L("**Há um sinal além da regra:** ",
+              "**There is a signal beyond the rule:** ") + sinais[0] + ".",
+            L("Vale cumprir as verificações abaixo antes de concluir. ",
+              "Worth running the checks below before concluding. ") + decide,
         ]
     so_volume = all(REGRAS[r].tipo == "Volumétrica" for r in ids)
     return [
-        "**Sinal isolado.** " + (
-            "É uma regra volumétrica, sem outro indício no cliente — o "
-            "desfecho mais comum é o descarte com a origem comprovada."
+        L("**Sinal isolado.** ", "**Isolated signal.** ") + (
+            L("É uma regra volumétrica, sem outro indício no cliente — o "
+              "desfecho mais comum é o descarte com a origem comprovada.",
+              "It's a volume-based rule, with no other red flag on the client "
+              "— the most common outcome is dismissal once the source of "
+              "funds is proven.")
             if so_volume else
-            "Uma regra só, sem contraparte compartilhada nem histórico."),
-        "Registre a justificativa no dossiê mesmo que descarte "
-        "(Circular 3.978, art. 43, § 2º). A decisão é da analista.",
+            L("Uma regra só, sem contraparte compartilhada nem histórico.",
+              "A single rule, with no shared counterparty and no history.")),
+        L("Registre a justificativa no dossiê mesmo que descarte "
+          "(Circular 3.978, art. 43, § 2º). ",
+          "Record the justification in the case file even if you dismiss "
+          "(Circular 3,978, art. 43, § 2). ") + decide,
     ]
 
 
 def _texto(d: Dossie) -> str:
     c = d.cabecalho
-    L = [f"## Dossiê de análise — {d.codigo}",
-         f"*Rascunho da Ravena · posição em {_data(d.ref)} · dado simulado*",
-         "",
-         "### 1. Identificação",
-         f"{c['Tipo']} · {c['Documento'].replace('*', chr(92) + '*')} · "
-         f"{c['Segmento']} · {c['UF']} "
-         f"({c['Área'].lower()}) · risco cadastral {c['Risco cadastral'].lower()}"
-         f" · {'PEP' if c['PEP'] == 'PEP' else 'não PEP'}.",
-         "",
-         "### 2. Operações e situações selecionadas"]
+    pep = c['PEP'] == 'PEP'
+    L_ = [L(f"## Dossiê de análise — {d.codigo}",
+            f"## Case file — {d.codigo}"),
+          L(f"*Rascunho da Ravena · posição em {_data(d.ref)} · dado simulado*",
+            f"*Ravena's draft · position on {_data(d.ref)} · simulated data*"),
+          "",
+          L("### 1. Identificação", "### 1. Identification"),
+          L(f"{c['Tipo']} · {c['Documento'].replace('*', chr(92) + '*')} · "
+            f"{c['Segmento']} · {c['UF']} "
+            f"({c['Área'].lower()}) · risco cadastral "
+            f"{c['Risco cadastral'].lower()} · {'PEP' if pep else 'não PEP'}.",
+            f"{V(c['Tipo'])} · {c['Documento'].replace('*', chr(92) + '*')} · "
+            f"{V(c['Segmento'])} · {c['UF']} ({V(c['Área']).lower()}) · "
+            f"{V(c['Risco cadastral']).lower()} risk rating · "
+            f"{'PEP' if pep else 'not PEP'}."),
+          "",
+          L("### 2. Operações e situações selecionadas",
+            "### 2. Selected transactions and situations")]
     if d.abertos.empty:
-        L.append("Nenhum alerta aberto nesta data.")
+        L_.append(L("Nenhum alerta aberto nesta data.",
+                    "No open alert on this date."))
     for a in d.abertos.itertuples():
-        r = REGRAS[a.regra_id]
-        L.append(f"- **{_data(a.data)} · {r.rotulo}.** {a.evidencia} "
-                 f"*Enquadramento: {citar(list(r.enquadramento))}; "
-                 f"{citar(list(r.base_3978))}.*")
+        r = REGRAS[a.regra_id].local
+        L_.append(f"- **{_data(a.data)} · {r.rotulo}.** {ev_local(a.evidencia)} "
+                  + L("*Enquadramento: ", "*Fits: ")
+                  + f"{citar(list(r.enquadramento))}; "
+                    f"{citar(list(r.base_3978))}.*")
 
-    L += ["", "### 3. Histórico"]
+    L_ += ["", L("### 3. Histórico", "### 3. History")]
     if d.historico.empty:
-        L.append("Primeira seleção deste cliente no monitoramento.")
+        L_.append(L("Primeira seleção deste cliente no monitoramento.",
+                    "First selection of this client in monitoring."))
     else:
         cont = d.historico["decisao"].value_counts()
-        partes = [f"{n} {dec.lower()}" for dec, n in cont.items()]
-        L.append(f"{len(d.historico)} alerta(s) anterior(es) já analisado(s): "
-                 + ", ".join(partes) + ".")
+        partes = [f"{n} {V(dec).lower()}" for dec, n in cont.items()]
+        L_.append(L(f"{len(d.historico)} alerta(s) anterior(es) já "
+                    f"analisado(s): ",
+                    f"{len(d.historico)} previous alert(s) already reviewed: ")
+                  + ", ".join(partes) + ".")
         com = d.historico[d.historico["decisao"] == "Comunicado ao COAF"]
         if not com.empty:
-            L.append(f"Última comunicação ao Coaf decidida em "
-                     f"{_data(max(com['data_decisao']))}.")
+            ult = _data(max(com['data_decisao']))
+            L_.append(L(f"Última comunicação ao Coaf decidida em {ult}.",
+                        f"Last report to COAF decided on {ult}."))
 
-    L += ["", "### 4. Contrapartes relevantes"]
+    L_ += ["", L("### 4. Contrapartes relevantes",
+                 "### 4. Relevant counterparties")]
     if d.contrapartes.empty:
-        L.append("Sem contraparte registrada para este tipo de cliente.")
+        L_.append(L("Sem contraparte registrada para este tipo de cliente.",
+                    "No counterparty recorded for this client type."))
     for cp in d.contrapartes.head(4).itertuples():
-        frase = (f"- {cp.sentido} {cp.contraparte}: {_brl(cp.valor)} em "
-                 f"{int(cp.qtd)} operação(ões)")
+        frase = L(f"- {cp.sentido} {cp.contraparte}: {_brl(cp.valor)} em "
+                  f"{int(cp.qtd)} operação(ões)",
+                  f"- {V(cp.sentido)} {V(cp.contraparte)}: {_brl(cp.valor)} "
+                  f"in {int(cp.qtd)} transaction(s)")
         if cp.compartilhada > 0:
-            frase += (f" — **a mesma contraparte aparece em "
-                      f"{int(cp.compartilhada)} outro(s) cliente(s) com "
-                      f"alerta**")
-        L.append(frase + ".")
+            frase += L(f" — **a mesma contraparte aparece em "
+                       f"{int(cp.compartilhada)} outro(s) cliente(s) com "
+                       f"alerta**",
+                       f" — **the same counterparty shows up in "
+                       f"{int(cp.compartilhada)} other client(s) with "
+                       f"alerts**")
+        L_.append(frase + ".")
 
-    L += ["", "### 5. Verificações sugeridas"]
+    L_ += ["", L("### 5. Verificações sugeridas", "### 5. Suggested checks")]
     for rid in sorted(set(d.abertos["regra_id"])):
-        L.append(f"- {rid}: {VERIFICAR[rid]}")
+        L_.append(f"- {rid}: {verificar(rid, VERIFICAR[rid])}")
 
-    L += ["", "### 6. Prazos"]
+    L_ += ["", L("### 6. Prazos", "### 6. Deadlines")]
     if d.prazo_final:
-        situacao = (f"faltam {d.dias_para_prazo} dia(s)"
-                    if d.dias_para_prazo >= 0 else
-                    f"**vencido há {-d.dias_para_prazo} dia(s)**")
-        L.append(f"Seleção mais antiga em {_data(min(d.abertos['data']))}; a "
-                 f"análise vai até {_data(d.prazo_final)} ({situacao}) — "
-                 f"Circular 3.978, art. 43, § 1º, {PRAZO_ANALISE_DIAS} dias "
-                 f"corridos.")
-    L.append("Se a decisão for comunicar, o envio ao Coaf vai até o dia útil "
-             "seguinte ao da decisão (art. 48, § 2º), sem dar ciência ao "
-             "cliente (Lei 9.613/1998, art. 11). A análise fica registrada "
-             "neste dossiê mesmo sem comunicação (art. 43, § 2º).")
+        n = d.dias_para_prazo
+        situacao = (L(f"faltam {n} dia(s)", f"{n} day(s) left") if n >= 0 else
+                    L(f"**vencido há {-n} dia(s)**", f"**overdue by {-n} day(s)**"))
+        ini, fim_ = _data(min(d.abertos['data'])), _data(d.prazo_final)
+        L_.append(L(f"Seleção mais antiga em {ini}; a análise vai até {fim_} "
+                    f"({situacao}) — Circular 3.978, art. 43, § 1º, "
+                    f"{PRAZO_ANALISE_DIAS} dias corridos.",
+                    f"Oldest selection on {ini}; the analysis is due by "
+                    f"{fim_} ({situacao}) — Circular 3,978, art. 43, § 1, "
+                    f"{PRAZO_ANALISE_DIAS} calendar days."))
+    L_.append(L("Se a decisão for comunicar, o envio ao Coaf vai até o dia útil "
+                "seguinte ao da decisão (art. 48, § 2º), sem dar ciência ao "
+                "cliente (Lei 9.613/1998, art. 11). A análise fica registrada "
+                "neste dossiê mesmo sem comunicação (art. 43, § 2º).",
+                "If the decision is to report, the filing to COAF is due by "
+                "the business day after the decision (art. 48, § 2), without "
+                "informing the client (Law 9,613/1998, art. 11). The analysis "
+                "stays recorded in this case file even without a report "
+                "(art. 43, § 2)."))
 
-    L += ["", "### 7. Leitura dos sinais"] + d.leitura
-    L += ["", "*Este rascunho organiza os fatos; não decide. A conclusão, a "
-              "justificativa e a assinatura são da analista.*"]
-    return "\n".join(L)
+    L_ += ["", L("### 7. Leitura dos sinais", "### 7. Reading the signals")] \
+        + d.leitura
+    L_ += ["", L("*Este rascunho organiza os fatos; não decide. A conclusão, a "
+                 "justificativa e a assinatura são da analista.*",
+                 "*This draft organizes the facts; it doesn't decide. The "
+                 "conclusion, the justification and the signature are the "
+                 "analyst's.*")]
+    return "\n".join(L_)

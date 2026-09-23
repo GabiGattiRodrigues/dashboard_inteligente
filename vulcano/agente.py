@@ -48,9 +48,12 @@ from . import causa_raiz as mod_causa
 from . import tendencia as mod_tendencia
 from . import analise as mod_analise
 from . import conversa as mod_conversa
+from . import i18n
 from .dados import Filtros, agregar, ultimo_sql
+from .i18n import L, V
 from .formatacao import numero, pct, variacao_pct
-from .periodos import Comparacao, Janela, PRESETS, montar_preset, ultimos_dias
+from .periodos import (Comparacao, Janela, PRESETS, montar_preset,
+                       rotulo_preset, ultimos_dias)
 from .semantica import Dominio
 
 MODELO_PADRAO = os.environ.get("VULCANO_MODELO", "gpt-4o-mini")
@@ -100,7 +103,8 @@ class Contexto:
     def descricao(self) -> str:
         p = f"{self.inicio.strftime('%d/%m/%Y')} a {self.fim.strftime('%d/%m/%Y')}"
         return (f"domínio {self.dominio.nome}; período {p}; "
-                f"filtros: {self.filtros.resumo(self.dominio)}")
+                f"filtros: {self.filtros.resumo(self.dominio)}; "
+                f"idioma da conversa: {'inglês' if i18n.en() else 'português'}")
 
 
 @dataclass
@@ -179,13 +183,19 @@ def _contem_palavra(texto_normalizado: str, termos: list[str]) -> bool:
 
 
 SAUDACOES = ["oi", "ola", "opa", "eai", "e ai", "bom dia", "boa tarde",
-             "boa noite", "tudo bem", "tudo bom", "como vai", "hey", "hi"]
+             "boa noite", "tudo bem", "tudo bom", "como vai", "hey", "hi",
+             "hello", "good morning", "good afternoon", "good evening"]
 AGRADECIMENTOS = ["obrigada", "obrigado", "valeu", "brigada", "brigado",
-                  "show", "perfeito", "otimo", "legal", "massa", "top"]
+                  "show", "perfeito", "otimo", "legal", "massa", "top",
+                  "thanks", "thank you", "cheers", "great", "perfect"]
 DESPEDIDAS = ["tchau", "ate mais", "ate logo", "falou", "abraco", "boa noite "
-              "entao", "por hoje e so"]
+              "entao", "por hoje e so", "bye", "goodbye", "see you",
+              "that's all", "thats all"]
 IDENTIDADE = ["quem e voce", "quem e vc", "seu nome", "voce e quem",
-              "qual seu nome", "quem fala", "voce e um robo", "voce e humano"]
+              "qual seu nome", "quem fala", "voce e um robo", "voce e humano",
+              "who are you", "your name", "what's your name",
+              "whats your name", "are you a robot", "are you human",
+              "are you a bot"]
 
 
 def _ordem_crescente(t: str, dom: Dominio, chave_metrica: str) -> bool:
@@ -199,11 +209,12 @@ def _ordem_crescente(t: str, dom: Dominio, chave_metrica: str) -> bool:
     justamente os melhores, com cara de resposta certa.
     """
     m = dom.metrica(chave_metrica)
-    if re.search(r"\b(pior|piores)\b", t):
+    if re.search(r"\b(pior|piores|worst|worse)\b", t):
         return m.bom_quando_sobe        # pior = valor baixo, se subir e bom
-    if re.search(r"\b(melhor|melhores)\b", t):
+    if re.search(r"\b(melhor|melhores|best|better)\b", t):
         return not m.bom_quando_sobe
-    return bool(re.search(r"\b(menor|menores|ultimos|fundo)\b", t))
+    return bool(re.search(r"\b(menor|menores|ultimos|fundo|lowest|smallest|"
+                          r"least|bottom)\b", t))
 
 
 # Aberturas que indicam continuidade em vez de pergunta nova. Em conversa real
@@ -214,7 +225,12 @@ CONTINUACAO = re.compile(
     r"^\s*(e|mas|entao|ok|certo|tá|ta|hum|beleza)\b|"
     r"^\s*(por que|porque|por qu[eê])\b|"
     r"^\s*(e )?(quanto|qual|quais|onde|quando|como)\s*\?*\s*$|"
-    r"\b(detalha|abre|quebra|destrincha|explica isso|e ai|me mostra)\b",
+    r"\b(detalha|abre|quebra|destrincha|explica isso|e ai|me mostra)\b|"
+    # English: "and why?", "what about by region?", "why?", "break it down"
+    r"^\s*(and|but|so|ok|okay|right|hmm|what about|how about)\b|"
+    r"^\s*(why|how come)\b|"
+    r"^\s*(and )?(how much|which|where|when|how)\s*\?*\s*$|"
+    r"\b(break it down|drill down|explain that|show me)\b",
     re.I,
 )
 
@@ -286,7 +302,8 @@ def interpretar_deterministico(pergunta: str, ctx: Contexto) -> dict[str, Any]:
     # do mês. Quando a frase realmente pede um número, ela cita a métrica ou a
     # dimensão, e aí as duas primeiras condições já cobrem.
     pediu_dado = bool(metrica_dita or dimensao_dita) or _contem(
-        t, ["quanto", "compara", "ranking", "grafico"])
+        t, ["quanto", "compara", "ranking", "grafico", "how much",
+            "how many", "chart", "graph"])
 
     # Dúvida de CONCEITO vem antes de tudo, inclusive de métrica citada:
     # "como você calcula o ticket médio?" cita a métrica mas não quer o valor
@@ -335,12 +352,21 @@ def interpretar_deterministico(pergunta: str, ctx: Contexto) -> dict[str, Any]:
     if _contem(t, ["analise geral", "visao geral da situacao", "resumo geral",
                    "panorama", "raio x", "raio-x", "me atualiza", "como estamos",
                    "como esta a situacao", "situacao geral", "me da um resumo",
-                   "resumo da situacao", "o que esta acontecendo"]):
+                   "resumo da situacao", "o que esta acontecendo",
+                   "overall analysis", "general analysis", "overall picture",
+                   "big picture", "overview of the situation", "x-ray",
+                   "how are we doing", "what's going on", "whats going on",
+                   "what is going on", "what is happening",
+                   "what's happening", "give me a summary", "overall summary",
+                   "situation summary", "catch me up", "status update"]):
         plano["intencao"] = "analise_geral"
         return plano
 
     if _contem(t, ["o que voce", "o que vc", "que perguntas", "quais metricas",
-                            "o que da pra", "o que sabe", "ajuda", "como usar"]):
+                   "o que da pra", "o que sabe", "ajuda", "como usar",
+                   "what can you", "what do you know", "which metrics",
+                   "what metrics", "what questions", "help me", "how to use",
+                   "what can i ask"]) or t.strip(" ?!.") == "help":
         plano["intencao"] = "catalogo"
         return plano
 
@@ -350,7 +376,12 @@ def interpretar_deterministico(pergunta: str, ctx: Contexto) -> dict[str, Any]:
     if dom.funil and _contem(t, ["onde trava", "onde a jornada trava", "funil",
                                  "onde para", "onde perde", "gargalo",
                                  "maior queda", "etapa que trava",
-                                 "jornada trava", "onde emperra"]):
+                                 "jornada trava", "onde emperra",
+                                 "get stuck", "gets stuck", "getting stuck",
+                                 "funnel", "bottleneck", "biggest drop",
+                                 "where do we lose", "where does it stop",
+                                 "where do orders stop", "drop-off",
+                                 "drop off"]):
         plano["intencao"] = "funil"
         return plano
 
@@ -360,43 +391,59 @@ def interpretar_deterministico(pergunta: str, ctx: Contexto) -> dict[str, Any]:
     # que não deixa dúvida.
     alerta_e_metrica = any("alerta" in _normalizar(x)
                            for xs in _sinonimos_metrica(dom).values() for x in xs)
-    gatilhos_alerta = (["tem alerta", "algum alerta", "alertas do dia",
-                        "alerta hoje", "alertas hoje", "alerta no dia",
-                        "anomalia", "fora do padrao", "estranho", "algo errado",
-                        "fugiu do padrao"]
-                       if alerta_e_metrica else
-                       ["alerta", "alertas", "anomalia", "fora do padrao",
-                        "estranho", "algo errado"])
+    inequivocos = ["tem alerta", "algum alerta", "alertas do dia",
+                   "alerta hoje", "alertas hoje", "alerta no dia",
+                   "anomalia", "fora do padrao", "estranho", "algo errado",
+                   "fugiu do padrao",
+                   "any alert", "alerts today", "alert today",
+                   "today's alerts", "alerts of the day", "anomaly",
+                   "anomalies", "out of pattern", "out of the ordinary",
+                   "unusual", "anything wrong", "something wrong",
+                   "anything odd", "anything weird", "anything strange"]
+    gatilhos_alerta = (inequivocos if alerta_e_metrica else
+                       inequivocos + ["alerta", "alertas", "alert", "alerts"])
     if _contem(t, gatilhos_alerta):
         plano["intencao"] = "alertas"
         return plano
 
     if _contem(t, ["por que", "porque", "por que", "causa", "explica",
-                            "o que explica", "puxou", "responsavel"]):
+                   "o que explica", "puxou", "responsavel"]) or \
+            _contem_palavra(t, ["why", "cause", "caused", "explain",
+                                "explains", "what drove", "driver", "drivers",
+                                "root cause", "behind", "how come"]):
         plano["intencao"] = "causa_raiz"
         plano["dimensao"] = plano["dimensao"] or dom.dims_filtro[0]
         return plano
 
     if _contem(t, ["tendencia", "esta subindo", "esta caindo", "crescendo",
-                            "caindo", "subindo", "vem crescendo", "vem caindo",
-                            "ao longo", "evolucao", "acelerou", "desacelerou",
-                            "sazonal", "sazonalidade", "trajetoria", "comportamento",
-                            "historico", "serie", "melhorando", "piorando",
-                            "evoluindo", "estabilizou"]):
+                   "caindo", "subindo", "vem crescendo", "vem caindo",
+                   "ao longo", "evolucao", "acelerou", "desacelerou",
+                   "sazonal", "sazonalidade", "trajetoria", "comportamento",
+                   "historico", "serie", "melhorando", "piorando",
+                   "evoluindo", "estabilizou",
+                   "trend", "growing", "falling", "rising", "declining",
+                   "going up", "going down", "over time", "evolution",
+                   "accelerat", "decelerat", "slowing", "seasonal",
+                   "seasonality", "trajectory", "history", "time series",
+                   "improving", "getting worse", "worsening", "getting better",
+                   "stabiliz", "increasing", "decreasing"]):
         plano["intencao"] = "tendencia"
         return plano
 
     # "qual canal TEM MAIS turnover precoce?" e ranking, mesmo sem "maior":
     # so vale com dimensao citada, senao "tem mais alguma coisa?" viraria
     # ranking da metrica padrao.
-    tem_mais = bool(dimensao_dita) and re.search(
+    tem_mais = bool(dimensao_dita) and (re.search(
         r"\b(tem|tinha|teve|com|concentra|perde|perdendo)\s+(o |a )?(mais|menos)\b", t)
+        or re.search(r"\b(the )?(most|least|fewest)\b", t))
     if tem_mais or re.search(r"\b(top|maiores?|menores?|melhores?|piores?|ranking|principais|"
-                 r"quais as|quais os)\b", t):
+                 r"quais as|quais os|largest|biggest|highest|lowest|smallest|"
+                 r"best|worst|rank|leading|which are the)\b", t):
         plano["intencao"] = "ranking"
         plano["dimensao"] = plano["dimensao"] or dom.dims_filtro[0]
         plano["crescente"] = _ordem_crescente(t, dom, plano["metrica"])
-        m = re.search(r"\btop\s*(\d{1,2})\b", t) or re.search(r"\b(\d{1,2})\s+maiores", t)
+        m = (re.search(r"\btop\s*(\d{1,2})\b", t)
+             or re.search(r"\b(\d{1,2})\s+(maiores|largest|biggest|highest)", t))
         if m:
             plano["top_n"] = int(m.group(1))
         return plano
@@ -406,11 +453,17 @@ def interpretar_deterministico(pergunta: str, ctx: Contexto) -> dict[str, Any]:
     if _contem_palavra(t, ["compara", "comparar", "comparando", "comparado",
                             "versus", "vs", "contra", "mes passado",
                             "semana passada", "cresceu", "caiu", "subiu", "aumentou",
-                            "diminuiu", "piorou", "melhorou", "variou", "variacao"]):
+                            "diminuiu", "piorou", "melhorou", "variou", "variacao",
+                            "compare", "comparing", "compared", "against",
+                            "last month", "previous month", "last week",
+                            "previous week", "grew", "dropped", "fell", "rose",
+                            "increased", "decreased", "got worse", "improved",
+                            "changed", "change"]):
         plano["intencao"] = "comparacao"
-        if "semana" in t:
+        if "semana" in t or re.search(r"\bweek\b", t):
             plano["preset"] = "semana"
-        elif "mes passado" in t or "mes anterior" in t:
+        elif any(x in t for x in ("mes passado", "mes anterior", "last month",
+                                  "previous month")):
             plano["preset"] = "mes_ate_aqui"
         return plano
 
@@ -536,9 +589,18 @@ o que deixa a pessoa refazer o número no papel. Se trouxerem ressalva
 metodológica (resíduo, censura, safra imatura, dado simulado), diga; omitir
 ressalva para a resposta ficar mais limpa é o pior erro possível aqui.
 
-Português do Brasil. No máximo 6 frases para resposta de dado e 2 para
+{idioma} No máximo 6 frases para resposta de dado e 2 para
 conversa; explicação de conceito pode ir até 8, porque ali a pessoa quer
 entender de verdade. Não repita os FATOS literalmente — interprete."""
+
+IDIOMA_NARRADOR = {
+    "pt": "Português do Brasil.",
+    # Os FATOS podem vir com rótulos em português (dado gravado em PT). A
+    # instrução pede para traduzir o texto, nunca os números.
+    "en": ("Responda em INGLÊS (the user has the dashboard in English). "
+           "Translate any Portuguese label in the FACTS into English, but "
+           "never change a number. Keep the R$ currency symbol."),
+}
 
 
 def chave_api() -> Optional[str]:
@@ -618,7 +680,8 @@ def narrar_com_llm(pergunta: str, fatos: dict[str, Any],
     sistema = PROMPT_NARRADOR.format(
         nome=(dom.agente_nome if dom else "o agente"),
         papel=(dom.agente_papel if dom else ""),
-        tom=(mod_conversa.voz(dom).tom if dom else ""))
+        tom=(mod_conversa.voz(dom).tom if dom else ""),
+        idioma=IDIOMA_NARRADOR[i18n.idioma()])
     msgs = [{"role": "system", "content": sistema}]
     # As ultimas trocas entram como conversa de verdade, para o agente nao
     # repetir o que acabou de dizer e para "e por que?" ter a que se referir.
@@ -647,18 +710,22 @@ def validar(plano: dict[str, Any], ctx: Contexto) -> tuple[dict[str, Any], list[
     p = dict(plano)
 
     if p.get("intencao") not in INTENCOES:
-        avisos.append(f"intenção '{p.get('intencao')}' desconhecida; usei 'total'")
+        avisos.append(L(f"intenção '{p.get('intencao')}' desconhecida; usei 'total'",
+                        f"unknown intent '{p.get('intencao')}'; used 'total'"))
         p["intencao"] = "total"
 
     if p.get("metrica") not in dom.metricas:
         padrao = dom.metricas_painel[0]
-        avisos.append(
+        avisos.append(L(
             f"a métrica '{p.get('metrica')}' não existe em {dom.nome}; "
-            f"usei {dom.metrica(padrao).rotulo}")
+            f"usei {dom.metrica(padrao).rotulo}",
+            f"metric '{p.get('metrica')}' does not exist in {dom.nome}; "
+            f"used {dom.metrica(padrao).rotulo}"))
         p["metrica"] = padrao
 
     if p.get("dimensao") and p["dimensao"] not in dom.dimensoes:
-        avisos.append(f"dimensão '{p['dimensao']}' não existe; ignorei")
+        avisos.append(L(f"dimensão '{p['dimensao']}' não existe; ignorei",
+                        f"dimension '{p['dimensao']}' does not exist; ignored"))
         p["dimensao"] = None
 
     if p.get("preset") and p["preset"] not in PRESETS:
@@ -693,7 +760,8 @@ def _fatos_base(ctx: Contexto, plano: dict[str, Any]) -> dict[str, Any]:
         "intencao": plano["intencao"],
     }
     if ctx.dominio.simulado:
-        base["aviso_de_dado"] = "Domínio com dado SIMULADO, não real."
+        base["aviso_de_dado"] = L("Domínio com dado SIMULADO, não real.",
+                                  "SIMULATED data domain, not real.")
     if ctx.dominio.notas:
         base["ressalvas_metodologicas"] = ctx.dominio.notas
     return base
@@ -727,16 +795,20 @@ def executar(
         fatos["conceito"] = titulo
         fatos["explicacao"] = corpo
         linhas.append(f"**{titulo}.** {corpo}")
-        linhas.append("Se quiser ver isso valendo num número de verdade, é só "
-                      "pedir — eu puxo do período que está selecionado.")
+        linhas.append(L("Se quiser ver isso valendo num número de verdade, é "
+                        "só pedir — eu puxo do período que está selecionado.",
+                        "If you want to see this on a real number, just ask — "
+                        "I'll pull it from the selected period."))
         return fatos, None, None, linhas
 
     if plano["intencao"] == "definicao":
         fatos["tipo"] = "definição de métrica, sem consulta a dados"
         fatos["metrica"] = m.rotulo
         linhas.append(mod_conversa.definir_metrica(dom, mk))
-        linhas.append(f"Quer o valor de {m.rotulo.lower()} no período "
-                      f"selecionado? É só pedir.")
+        linhas.append(L(f"Quer o valor de {m.rotulo.lower()} no período "
+                        f"selecionado? É só pedir.",
+                        f"Want the value of {m.rotulo.lower()} for the "
+                        f"selected period? Just ask."))
         return fatos, None, None, linhas
 
     if plano["intencao"] == "funil":
@@ -764,46 +836,59 @@ def executar(
                            "metrica": at["metrica"]})
         pior = max(quedas, key=lambda x: x["perdidos"]) if quedas else None
 
+        col_etapa, col_ped, col_tot = (L("etapa", "stage"),
+                                       L("pedidos", "orders"),
+                                       L("do total", "of total"))
         fatos["funil"] = [
-            {"etapa": p["etapa"], "pedidos": f"{p['pedidos']:,}".replace(",", "."),
-             "do total": pct(p["fatia"], 1, sinal=False)} for p in passos]
+            {col_etapa: p["etapa"], col_ped: i18n.num(p["pedidos"]),
+             col_tot: pct(p["fatia"], 1, sinal=False)} for p in passos]
         fatos["maior_queda"] = pior
 
         linhas.append(
-            "**A jornada, ponta a ponta:** "
+            L("**A jornada, ponta a ponta:** ", "**The journey, end to end:** ")
             + " → ".join(f"{p['etapa']} {pct(p['fatia'], 1, sinal=False)}"
                          for p in passos) + "."
         )
         if pior and pior["perdidos"] > 0:
-            linhas.append(
+            linhas.append(L(
                 f"**Onde mais trava:** entre *{pior['de']}* e "
-                f"*{pior['para']}* — {pior['perdidos']:,}".replace(",", ".")
-                + f" pedidos ficam pelo caminho, "
-                  f"{pct(pior['taxa'], 1, sinal=False)} dos que chegaram nessa "
-                  f"etapa. É a maior perda absoluta do funil no período."
-            )
+                f"*{pior['para']}* — {i18n.num(pior['perdidos'])} pedidos "
+                f"ficam pelo caminho, {pct(pior['taxa'], 1, sinal=False)} dos "
+                f"que chegaram nessa etapa. É a maior perda absoluta do funil "
+                f"no período.",
+                f"**Where it gets stuck the most:** between *{pior['de']}* and "
+                f"*{pior['para']}* — {i18n.num(pior['perdidos'])} orders are "
+                f"lost along the way, {pct(pior['taxa'], 1, sinal=False)} of "
+                f"those that reached that stage. It is the funnel's largest "
+                f"absolute loss in the period."))
             if pior["metrica"]:
-                linhas.append(
+                linhas.append(L(
                     f"**O que fazer:** abra a causa raiz de "
                     f"*{dom.metrica(pior['metrica']).rotulo}* por categoria ou "
                     f"por rota do envio — a perna que trava costuma estar "
-                    f"concentrada em poucos vendedores, não espalhada."
-                )
+                    f"concentrada em poucos vendedores, não espalhada.",
+                    f"**What to do:** open the root cause of "
+                    f"*{dom.metrica(pior['metrica']).rotulo}* by category or "
+                    f"by shipping route — the leg that gets stuck is usually "
+                    f"concentrated in a few sellers, not spread out."))
         else:
-            linhas.append("Nenhuma etapa perdeu pedido no período — a jornada "
-                          "fechou inteira para todo mundo que comprou.")
+            linhas.append(L("Nenhuma etapa perdeu pedido no período — a "
+                            "jornada fechou inteira para todo mundo que "
+                            "comprou.",
+                            "No stage lost orders in the period — the journey "
+                            "closed in full for everyone who bought."))
         tabela = pd.DataFrame(fatos["funil"])
         return fatos, tabela, None, linhas
 
     if plano["intencao"] == "nao_entendi":
-        fatos["tipo"] = "pergunta não compreendida"
+        fatos["tipo"] = L("pergunta não compreendida", "question not understood")
         linhas += mod_conversa.nao_entendi(dom, plano.get("pergunta", ""))
         return fatos, None, None, linhas
 
     if plano["intencao"] == "conversa":
         # Conversa nao consulta a base. Responder "oi" com o faturamento do mes
         # e o tipo de coisa que faz a pessoa parar de usar a ferramenta.
-        fatos["tipo"] = "conversa, sem consulta a dados"
+        fatos["tipo"] = L("conversa, sem consulta a dados", "small talk, no data query")
         fatos["agente"] = dom.agente_nome
         fatos["pode_ajudar_com"] = list(dom.perguntas_exemplo[:3])
         tom = plano.get("tom", "saudacao")
@@ -820,9 +905,13 @@ def executar(
         linhas += mod_analise.narrar_analise_geral(dom, g)
         if g["piorou"] or g["melhorou"]:
             tabela = pd.DataFrame([
-                {"Métrica": x["rotulo"], "Atual": x["atual"],
-                 "Base": x["base"], "Variação": x["variacao"],
-                 "Leitura": "melhorou" if x["melhorou"] else "piorou"}
+                {L("Métrica", "Metric"): x["rotulo"],
+                 L("Atual", "Current"): x["atual"],
+                 L("Base", "Baseline"): x["base"],
+                 L("Variação", "Change"): x["variacao"],
+                 L("Leitura", "Reading"): (L("melhorou", "improved")
+                                           if x["melhorou"]
+                                           else L("piorou", "got worse"))}
                 for x in (g["piorou"] + g["melhorou"])
             ])
         return fatos, tabela, None, linhas
@@ -831,13 +920,17 @@ def executar(
         fatos["metricas"] = {k: v.rotulo for k, v in dom.metricas.items()}
         fatos["dimensoes"] = {k: v.rotulo for k, v in dom.dimensoes.items()}
         fatos["capacidades"] = INTENCOES
-        linhas.append(
-            f"Neste domínio ({dom.nome}) o Vulcano responde sobre "
-            + ", ".join(v.rotulo.lower() for v in dom.metricas.values())
-            + ", quebrado por " + ", ".join(v.rotulo.lower() for v in dom.dimensoes.values())
-            + ". Da para pedir o valor, o ranking, a comparação entre períodos, a causa "
-              "raiz de uma variação, a tendência ao longo do tempo e os alertas do dia."
-        )
+        metricas = ", ".join(v.rotulo.lower() for v in dom.metricas.values())
+        dims = ", ".join(v.rotulo.lower() for v in dom.dimensoes.values())
+        linhas.append(L(
+            f"Neste domínio ({dom.nome}) eu respondo sobre {metricas}, "
+            f"quebrado por {dims}. Dá para pedir o valor, o ranking, a "
+            f"comparação entre períodos, a causa raiz de uma variação, a "
+            f"tendência ao longo do tempo e os alertas do dia.",
+            f"In this domain ({dom.nome}) I answer about {metricas}, split by "
+            f"{dims}. You can ask for the value, a ranking, a comparison "
+            f"between periods, the root cause of a change, the trend over time "
+            f"and the day's alerts."))
         return fatos, None, None, linhas
 
     if plano["intencao"] == "alertas":
@@ -845,7 +938,7 @@ def executar(
         al = mod_alertas.varrer(con, dom, ref, ctx.filtros)
         fatos["resumo"] = mod_alertas.resumir(al, ref)
         fatos["alertas"] = [
-            {"metrica": dom.metrica(a.chave_metrica).rotulo, "segmento": a.segmento,
+            {"metrica": dom.metrica(a.chave_metrica).rotulo, "segmento": V(a.segmento) if a.segmento else None,
              "severidade": a.severidade, "tipo": a.tipo,
              "observado": numero(a.observado, dom.metrica(a.chave_metrica)),
              "esperado": numero(a.esperado, dom.metrica(a.chave_metrica)),
@@ -856,11 +949,12 @@ def executar(
         linhas += [f"{a.texto} {a.acao}" for a in al[:4]]
         if al:
             tabela = pd.DataFrame([
-                {"Severidade": a.severidade,
-                 "Métrica": dom.metrica(a.chave_metrica).rotulo,
-                 "Segmento": a.segmento or "— total —",
-                 "Observado": numero(a.observado, dom.metrica(a.chave_metrica)),
-                 "Esperado": numero(a.esperado, dom.metrica(a.chave_metrica)),
+                {L("Severidade", "Severity"): mod_alertas.nome_severidade(a.severidade),
+                 L("Métrica", "Metric"): dom.metrica(a.chave_metrica).rotulo,
+                 L("Segmento", "Segment"): V(a.segmento) if a.segmento
+                 else L("— total —", "— total —"),
+                 L("Observado", "Observed"): numero(a.observado, dom.metrica(a.chave_metrica)),
+                 L("Esperado", "Expected"): numero(a.esperado, dom.metrica(a.chave_metrica)),
                  "z": f"{a.z:+.1f}"} for a in al[:15]
             ])
         return fatos, tabela, None, linhas
@@ -868,7 +962,10 @@ def executar(
     if plano["intencao"] == "tendencia":
         t = mod_tendencia.analisar(con, dom, mk, ctx.inicio, ctx.fim, ctx.filtros)
         if t is None:
-            linhas.append("Não há dias suficientes no período selecionado para ler tendência.")
+            linhas.append(L("Não há dias suficientes no período selecionado "
+                            "para ler tendência.",
+                            "There are not enough days in the selected period "
+                            "to read a trend."))
             return fatos, None, None, linhas
         fatos.update({
             "direcao": t.direcao,
@@ -885,7 +982,9 @@ def executar(
         })
         linhas += mod_tendencia.descrever(t)
         grafico = t.serie
-        tabela = t.perfil_semanal[["dia", "valor", "indice"]].dropna()
+        tabela = t.perfil_semanal[["dia", "valor", "indice"]].dropna().rename(
+            columns={"dia": L("dia", "day"), "valor": L("valor", "value"),
+                     "indice": L("índice", "index")})
         return fatos, tabela, grafico, linhas
 
     if plano["intencao"] == "causa_raiz":
@@ -902,7 +1001,7 @@ def executar(
             "decomposicao_fecha": dec.fecha,
             "residuo": numero(dec.residuo, m, sinal=True),
             "principais_contribuicoes": [
-                {"segmento": r["segmento"],
+                {"segmento": V(r["segmento"]),
                  "contribuicao": numero(r["contribuicao"], m, sinal=True),
                  "share_da_variacao": pct(r["share_da_variacao"], 0),
                  "efeito_taxa": numero(r["efeito_taxa"], m, sinal=True) if dec.eh_razao else None,
@@ -914,7 +1013,13 @@ def executar(
         if dec.aviso:
             linhas.append(dec.aviso)
         tabela = dec.df[["segmento", "valor_a", "valor_b", "contribuicao",
-                         "share_da_variacao"]]
+                         "share_da_variacao"]].copy()
+        tabela["segmento"] = tabela["segmento"].map(V)
+        if i18n.en():
+            tabela = tabela.rename(columns={
+                "segmento": "segment", "valor_a": "baseline",
+                "valor_b": "current", "contribuicao": "contribution",
+                "share_da_variacao": "share_of_change"})
         grafico = mod_causa.dados_cascata(dec)
         return fatos, tabela, grafico, linhas
 
@@ -932,12 +1037,15 @@ def executar(
             "variacao_percentual": pct(variacao_pct(vb, va)),
             "metrica_melhora_subindo": m.bom_quando_sobe,
         })
-        direcao = "subiu" if delta > 0 else "caiu"
-        linhas.append(
-            f"**{m.rotulo}** {direcao} de {numero(va, m)} para {numero(vb, m)} "
+        linhas.append(L(
+            f"**{m.rotulo}** {'subiu' if delta > 0 else 'caiu'} de "
+            f"{numero(va, m)} para {numero(vb, m)} "
             f"({numero(delta, m, sinal=True)}, {pct(variacao_pct(vb, va))}), "
-            f"comparando {comp.atual} contra {comp.anterior}."
-        )
+            f"comparando {comp.atual} contra {comp.anterior}.",
+            f"**{m.rotulo}** {'rose' if delta > 0 else 'fell'} from "
+            f"{numero(va, m)} to {numero(vb, m)} "
+            f"({numero(delta, m, sinal=True)}, {pct(variacao_pct(vb, va))}), "
+            f"comparing {comp.atual} against {comp.anterior}."))
         return fatos, None, None, linhas
 
     if plano["intencao"] == "ranking":
@@ -948,17 +1056,51 @@ def executar(
         df = df.dropna(subset=[mk])
         if df.empty:
             fatos["dimensao"] = d.rotulo
-            fatos["resultado"] = "sem linhas com valor definido no período"
-            linhas.append(
-                f"Não há valor de **{m.rotulo}** por {d.rotulo.lower()} no período "
-                f"selecionado. {m.descricao} "
-                + ("Em crédito isso normalmente significa que nenhuma safra do "
-                   "período completou o tempo de maturação exigido — a métrica "
-                   "fica vazia de proposito, e não zerada. Amplie o período para "
-                   "trás para alcancar safras já maduras."
-                   if dom.simulado or "MOB" in m.descricao
-                   else "Verifique o período e os filtros selecionados.")
-            )
+            fatos["resultado"] = L("sem linhas com valor definido no período",
+                                   "no rows with a defined value in the period")
+            maturacao = dom.simulado or "MOB" in m.descricao
+            # A frase de maturação depende do domínio: em crédito é a safra
+            # de originação que não completou o MOB; em People é a safra de
+            # admissão que não completou 90 dias; em PLD é o alerta que ainda
+            # não fez 45 dias.
+            por_dominio = {
+                "people": (
+                    "Aqui isso normalmente significa que nenhuma safra de "
+                    "admissão do período completou os 90 dias — a métrica "
+                    "fica vazia de propósito, e não zerada. Amplie o período "
+                    "para trás para alcançar safras já maduras.",
+                    "Here this usually means no hire cohort in the period has "
+                    "completed its 90 days — the metric is left empty on "
+                    "purpose, not zeroed. Extend the period backwards to reach "
+                    "mature cohorts."),
+                "pld": (
+                    "Aqui isso normalmente significa que os alertas do período "
+                    "ainda não completaram 45 dias — as taxas de decisão ficam "
+                    "vazias de propósito, e não zeradas. Amplie o período para "
+                    "trás para alcançar alertas maduros.",
+                    "Here this usually means the period's alerts haven't "
+                    "reached 45 days yet — decision rates are left empty on "
+                    "purpose, not zeroed. Extend the period backwards to reach "
+                    "mature alerts."),
+            }
+            pt_mat, en_mat = por_dominio.get(dom.chave, (
+                "Em crédito isso normalmente significa que nenhuma safra do "
+                "período completou o tempo de maturação exigido — a métrica "
+                "fica vazia de propósito, e não zerada. Amplie o período "
+                "para trás para alcançar safras já maduras.",
+                "In credit this usually means no vintage in the period has "
+                "completed the required maturation time — the metric is left "
+                "empty on purpose, not zeroed. Extend the period backwards to "
+                "reach mature vintages."))
+            linhas.append(L(
+                f"Não há valor de **{m.rotulo}** por {d.rotulo.lower()} no "
+                f"período selecionado. {m.descricao} "
+                + (pt_mat if maturacao
+                   else "Verifique o período e os filtros selecionados."),
+                f"There is no value of **{m.rotulo}** by {d.rotulo.lower()} in "
+                f"the selected period. {m.descricao} "
+                + (en_mat if maturacao
+                   else "Check the selected period and filters.")))
             return fatos, None, None, linhas
         df = df.sort_values(mk, ascending=plano["crescente"]).head(plano["top_n"])
         total = agregar(con, dom, [mk], ctx.inicio, ctx.fim, filtros=ctx.filtros)
@@ -968,24 +1110,35 @@ def executar(
         rotulo_ordem = "piores" if pior else "melhores"
         fatos.update({
             "dimensao": d.rotulo,
-            "ordem": f"{'menores' if plano['crescente'] else 'maiores'} valores, "
-                     f"que nesta métrica são os {rotulo_ordem}",
+            "ordem": L(f"{'menores' if plano['crescente'] else 'maiores'} "
+                       f"valores, que nesta métrica são os {rotulo_ordem}",
+                       f"{'lowest' if plano['crescente'] else 'highest'} "
+                       f"values, which for this metric are the "
+                       f"{'worst' if pior else 'best'}"),
             "total_no_periodo": numero(vt, m),
             "itens": [
-                {"segmento": str(r[d.coluna]), "valor": numero(r[mk], m),
+                {"segmento": V(r[d.coluna]), "valor": numero(r[mk], m),
                  "share": pct(r[f"{mk}__num"] / vt, 1, sinal=False)
                  if (not m.eh_razao and vt) else None}
                 for _, r in df.iterrows()
             ],
         })
-        topo = ", ".join(f"{r[d.coluna]} ({numero(r[mk], m)})" for _, r in df.head(3).iterrows())
-        linhas.append(
+        topo = ", ".join(f"{V(r[d.coluna])} ({numero(r[mk], m)})"
+                         for _, r in df.head(3).iterrows())
+        linhas.append(L(
             f"**{rotulo_ordem.capitalize()}** valores de **{m.rotulo}** "
             f"por {d.rotulo.lower()} no período: {topo}. "
-            f"({'Menor' if plano['crescente'] else 'Maior'} valor primeiro; nesta "
-            f"métrica {'menor' if not m.bom_quando_sobe else 'maior'} é melhor.)"
-        )
-        tabela = df[[d.coluna, mk]].rename(columns={d.coluna: d.rotulo, mk: m.rotulo})
+            f"({'Menor' if plano['crescente'] else 'Maior'} valor primeiro; "
+            f"nesta métrica {'menor' if not m.bom_quando_sobe else 'maior'} "
+            f"é melhor.)",
+            f"**{'Worst' if pior else 'Best'}** values of **{m.rotulo}** by "
+            f"{d.rotulo.lower()} in the period: {topo}. "
+            f"({'Lowest' if plano['crescente'] else 'Highest'} value first; "
+            f"for this metric {'lower' if not m.bom_quando_sobe else 'higher'} "
+            f"is better.)"))
+        tabela = df[[d.coluna, mk]].copy()
+        tabela[d.coluna] = tabela[d.coluna].map(V)
+        tabela = tabela.rename(columns={d.coluna: d.rotulo, mk: m.rotulo})
         return fatos, tabela, None, linhas
 
     # total
@@ -993,10 +1146,11 @@ def executar(
     v = float(df.iloc[0][mk]) if not df.empty and pd.notna(df.iloc[0][mk]) else float("nan")
     fatos["valor"] = numero(v, m)
     fatos["dias_no_periodo"] = (ctx.fim - ctx.inicio).days + 1
-    linhas.append(
-        f"**{m.rotulo}** no período de {ctx.inicio.strftime('%d/%m/%Y')} a "
-        f"{ctx.fim.strftime('%d/%m/%Y')}: {numero(v, m)}."
-    )
+    linhas.append(L(
+        f"**{m.rotulo}** no período de {i18n.data(ctx.inicio)} a "
+        f"{i18n.data(ctx.fim)}: {numero(v, m)}.",
+        f"**{m.rotulo}** from {i18n.data(ctx.inicio)} to "
+        f"{i18n.data(ctx.fim)}: {numero(v, m)}."))
     return fatos, None, None, linhas
 
 
@@ -1061,13 +1215,15 @@ def perguntar(
                 ctx.filtros, dim_preferida=plano.get("dimensao"))
             fatos.update(leitura.para_fatos())
             if leitura.formula:
-                linhas.append(f"**A conta:** {leitura.formula}")
+                linhas.append(L("**A conta:** ", "**The math:** ")
+                              + leitura.formula)
             novas = [x for x in leitura.insights if x not in linhas]
             linhas += novas[:2]
             if plano["intencao"] != "tendencia":
                 linhas += leitura.tendencia[:1]
             if leitura.recomendacoes:
-                linhas.append("**O que fazer:** " + leitura.recomendacoes[0])
+                linhas.append(L("**O que fazer:** ", "**What to do:** ")
+                              + leitura.recomendacoes[0])
         except Exception:
             pass    # leitura e um extra; nunca deve derrubar a resposta
 
@@ -1080,7 +1236,8 @@ def perguntar(
             motor = "llm+fallback"
 
     if avisos:
-        texto += "\n\n*Ajustes no plano: " + "; ".join(avisos) + ".*"
+        texto += (L("\n\n*Ajustes no plano: ", "\n\n*Plan adjustments: ")
+                  + "; ".join(avisos) + ".*")
 
     return Resposta(
         texto=texto, plano=plano, fatos=fatos, tabela=tabela, grafico=grafico,
@@ -1089,7 +1246,13 @@ def perguntar(
 
 
 def sugestoes(dom: Dominio) -> list[str]:
-    return list(dom.perguntas_exemplo) + ["O que você sabe responder?"]
+    return list(dom.perguntas_exemplo) + [
+        L("O que você sabe responder?", "What can you answer?")]
 
 
 PERGUNTA_ANALISE_GERAL = "Me dá uma análise geral da situação"
+PERGUNTA_ANALISE_GERAL_EN = "Give me an overall analysis of the situation"
+
+
+def pergunta_analise_geral() -> str:
+    return L(PERGUNTA_ANALISE_GERAL, PERGUNTA_ANALISE_GERAL_EN)

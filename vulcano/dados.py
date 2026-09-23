@@ -21,6 +21,7 @@ from typing import Optional, Sequence
 import duckdb
 import pandas as pd
 
+from .i18n import L, V
 from .semantica import Dominio
 
 PASTA_DADOS = Path(__file__).resolve().parents[1] / "data"
@@ -92,9 +93,9 @@ class Filtros:
             if not v:
                 continue
             rot = dom.dimensao(k).rotulo if (dom and k in dom.dimensoes) else k
-            partes.append(f"{rot}: {', '.join(map(str, v[:3]))}"
+            partes.append(f"{rot}: {', '.join(V(x) for x in v[:3])}"
                           + (f" +{len(v) - 3}" if len(v) > 3 else ""))
-        return " | ".join(partes) if partes else "sem filtro"
+        return " | ".join(partes) if partes else L("sem filtro", "no filter")
 
     def __bool__(self) -> bool:
         return any(bool(v) for v in self.valores.values())

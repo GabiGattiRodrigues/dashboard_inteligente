@@ -29,6 +29,9 @@ import unicodedata
 from dataclasses import dataclass
 from typing import Optional
 
+from . import i18n
+from .conversa_en import CONCEITOS_EN, VOZ_PADRAO_EN, VOZES_EN
+from .i18n import L
 from .semantica import Dominio
 
 
@@ -257,13 +260,16 @@ VOZ_PADRAO = Voz(
 
 
 def voz(dom: Dominio) -> Voz:
-    return VOZES.get(getattr(dom, "agente_voz", ""), VOZ_PADRAO)
+    chave = getattr(dom, "agente_voz", "")
+    if i18n.en():
+        return Voz(**VOZES_EN.get(chave, VOZ_PADRAO_EN))
+    return VOZES.get(chave, VOZ_PADRAO)
 
 
 def _artigo(dom: Dominio) -> str:
     """"Sou a Abigail" / "Sou o Bailey". Gênero errado no nome próprio é a
     primeira coisa que denuncia texto gerado em massa."""
-    return f"Sou {dom.agente_artigo}"
+    return L(f"Sou {dom.agente_artigo}", "I'm")
 
 
 def _escolher(opcoes, semente: str, **fmt) -> str:
@@ -715,6 +721,19 @@ CONCEITOS += [
 ]
 
 
+assert len(CONCEITOS) == len(CONCEITOS_EN), \
+    "conversa_en.CONCEITOS_EN tem de ter um verbete para cada um de CONCEITOS"
+
+
+def _casa_gatilho(g: str, t: str) -> bool:
+    # Gatilho curto em inglês ("mad", "mix", "pep", "gap") precisa de
+    # fronteira de palavra: por substring, "mad" casaria dentro de "made" e a
+    # pergunta viraria uma aula sobre MAD.
+    if len(g) <= 4 and g.isascii():
+        return re.search(rf"(?<!\w){re.escape(g)}(?!\w)", t) is not None
+    return g in t
+
+
 def explicar(texto: str,
              aceitar_fracos: bool = True) -> Optional[tuple[str, str]]:
     """
@@ -723,23 +742,30 @@ def explicar(texto: str,
     Com `aceitar_fracos=False` só os gatilhos inequívocos contam. É o modo
     usado quando a frase NÃO soa como dúvida: aí "tem alerta hoje?" continua
     sendo uma consulta de alertas, e não um pedido de aula sobre alertas.
+
+    Os gatilhos das duas línguas valem sempre; o verbete volta na língua
+    ativa. O par português/inglês é o mesmo índice nas duas listas.
     """
     t = _normalizar(texto)
-    melhor: Optional[tuple[int, str, str]] = None
-    for gatilhos, titulo, corpo in CONCEITOS:
-        fracos = {_normalizar(x) for x in FRACOS.get(titulo, [])}
-        for gat in gatilhos:
+    melhor: Optional[tuple[int, int]] = None
+    for i, ((gatilhos, titulo, _), (gat_en, fracos_en, _, _)) in enumerate(
+            zip(CONCEITOS, CONCEITOS_EN)):
+        fracos = {_normalizar(x) for x in FRACOS.get(titulo, []) + fracos_en}
+        for gat in list(gatilhos) + list(gat_en):
             g = _normalizar(gat)
             if not aceitar_fracos and g in fracos:
                 continue
-            if g in t:
+            if _casa_gatilho(g, t):
                 # O gatilho mais longo ganha: "quao relevante" é mais
                 # específico do que "alerta" e descreve melhor a pergunta.
                 if melhor is None or len(g) > melhor[0]:
-                    melhor = (len(g), titulo, corpo)
+                    melhor = (len(g), i)
     if melhor is None:
         return None
-    return melhor[1], melhor[2]
+    i = melhor[1]
+    if i18n.en():
+        return CONCEITOS_EN[i][2], CONCEITOS_EN[i][3]
+    return CONCEITOS[i][1], CONCEITOS[i][2]
 
 
 def definir_metrica(dom: Dominio, chave: str) -> str:
@@ -747,12 +773,16 @@ def definir_metrica(dom: Dominio, chave: str) -> str:
     m = dom.metrica(chave)
     partes = [f"**{m.rotulo}** — {m.descricao}"]
     if getattr(m, "formula", None):
-        partes.append(f"A conta é: `{m.formula}`.")
-    partes.append(
-        "Nesta métrica, "
-        + ("subir é bom." if m.bom_quando_sobe else "**subir é ruim** — "
-           "então uma alta aparece em vermelho no painel.")
-    )
+        partes.append(L(f"A conta é: `{m.formula}`.",
+                        f"The math is: `{m.formula}`."))
+    if m.bom_quando_sobe:
+        partes.append(L("Nesta métrica, subir é bom.",
+                        "For this metric, going up is good."))
+    else:
+        partes.append(L("Nesta métrica, **subir é ruim** — então uma alta "
+                        "aparece em vermelho no painel.",
+                        "For this metric, **going up is bad** — so a rise "
+                        "shows in red on the dashboard."))
     return " ".join(partes)
 
 
@@ -760,9 +790,26 @@ def definir_metrica(dom: Dominio, chave: str) -> str:
 # 3. A saída elegante
 # --------------------------------------------------------------------------- #
 
+# "what is" em inglês serve para as duas coisas: "what is MOB?" pede o
+# conceito, "what is the average ticket?" pede o número. O artigo e o recorte
+# desempatam -- com "the", "our", "by", "in the period", é dado.
+_WHAT_IS = re.compile(r"\b(what is|what's|whats|what are)\s+(?!the\b|our\b|"
+                      r"my\b|this\b|that\b|current\b|total\b|today)")
+_E_DADO = re.compile(r"\b(by|per|in the period|this month|last month|today|"
+                     r"yesterday|now|so far|for the period)\b")
+
+
 def pergunta_de_conceito(texto: str) -> bool:
     """Cheira a 'o que é' / 'como funciona' em vez de 'quanto foi'."""
     t = _normalizar(texto)
+    # "o que explica a variação?" pede CAUSA, não conceito: "explica" ali é
+    # o verbo da pergunta de dado. Sem esta exceção, dois dos exemplos da
+    # tela ("o que explica a variação dos alertas...", "qual a nota média e o
+    # que explica ela?") viravam aula sobre alerta e definição de métrica.
+    if re.search(r"\b(o que|oq|que|what) explica?s?\b", t):
+        return False
+    if _WHAT_IS.search(t) and not _E_DADO.search(t):
+        return True
     return bool(re.search(
         r"\b(o que e|oq e|que e|o que sao|como funciona|como voce|como vc|"
         r"por que voce|por que vc|significa|quer dizer|explica|explique|"
@@ -771,7 +818,13 @@ def pergunta_de_conceito(texto: str) -> bool:
         r"para que serve|pra que serve|por que existe|qual a logica|"
         r"como se calcula|de onde vem|de onde sai|como voces|em que consiste|"
         r"como (o|a|os|as) [a-z ]{3,40} (e|sao) calculad[oa]s?|"
-        r"como (o|a|os|as) [a-z ]{3,40} funciona)\b",
+        r"como (o|a|os|as) [a-z ]{3,40} funciona|"
+        # English
+        r"what does|how does|how do you|"
+        r"how is [a-z ]{3,40} calculated|how are [a-z ]{3,40} calculated|"
+        r"why do you|what do you mean|meaning of|stand for|stands for|"
+        r"explain what|explain how|difference between|how does it work|"
+        r"what for|how come you)\b",
         t))
 
 
@@ -779,18 +832,24 @@ def social(texto: str) -> Optional[str]:
     """Classifica a conversa social. None quando não é isso."""
     t = _normalizar(texto)
     if re.search(r"\b(tudo bem|tudo bom|como vai|como voce esta|como vc esta|"
-                 r"beleza)\b", t):
+                 r"beleza|how are you|how are you doing|how's it going|"
+                 r"hows it going|how is it going)\b", t):
         return "como_esta"
-    if _tem(t, ["obrigad", "valeu", "brigad", "agradec"]):
+    if _tem(t, ["obrigad", "valeu", "brigad", "agradec", "thank", "thx",
+                "cheers"]):
         return "agradecimento"
     if _tem(t, ["muito bom", "otimo", "perfeito", "adorei", "gostei", "show",
-                "massa", "top", "excelente", "boa"]):
+                "massa", "top", "excelente", "boa"]) or re.search(
+            r"\b(great|awesome|perfect|nice|love it|loved it|excellent|"
+            r"cool|good job|well done)\b", t):
         return "elogio"
     if re.search(r"\b(tchau|ate mais|ate logo|falou|abraco|por hoje e so|"
-                 r"ate amanha)\b", t):
+                 r"ate amanha|bye|goodbye|see you|see ya|that's all|thats all|"
+                 r"talk later)\b", t):
         return "despedida"
     if re.search(r"\b(oi|ola|opa|e ai|eai|hey|hi|bom dia|boa tarde|"
-                 r"boa noite)\b", t):
+                 r"boa noite|hello|good morning|good afternoon|"
+                 r"good evening|yo)\b", t):
         return "saudacao"
     return None
 
@@ -803,27 +862,37 @@ def responder_social(dom: Dominio, texto: str, tom: str) -> list[str]:
 
     if tom == "agradecimento":
         return [_escolher(v.agradecimento, texto),
-                f"Se quiser puxar outro fio de {dominio}, é só falar."]
+                L(f"Se quiser puxar outro fio de {dominio}, é só falar.",
+                  f"If you want to pull another thread in {dominio}, just "
+                  f"say so.")]
     if tom == "elogio":
         return [_escolher(v.elogio, texto)]
     if tom == "despedida":
         return [_escolher(v.despedida, texto)]
     if tom == "como_esta":
         return [_escolher(v.como_esta, texto),
-                f"Enquanto isso: quer que eu dê uma varrida geral em "
-                f"{dominio} e te conte o que mudou?"]
+                L(f"Enquanto isso: quer que eu dê uma varrida geral em "
+                  f"{dominio} e te conte o que mudou?",
+                  f"Meanwhile: want me to do a full sweep of {dominio} and "
+                  f"tell you what changed?")]
     if tom == "identidade":
         return [
             f"{_artigo(dom)} {dom.agente_nome}. {dom.agente_papel}",
-            "Leio a mesma camada semântica que desenha os gráficos desta tela "
-            "e respeito os mesmos filtros — então o número que eu falo é o "
-            "número que você vê. Se divergir, é bug meu, pode cobrar.",
-            f"Dá para começar por: {exemplos}",
+            L("Leio a mesma camada semântica que desenha os gráficos desta "
+              "tela e respeito os mesmos filtros — então o número que eu falo "
+              "é o número que você vê. Se divergir, é bug meu, pode cobrar.",
+              "I read the same semantic layer that draws the charts on this "
+              "screen and respect the same filters — so the number I tell you "
+              "is the number you see. If they differ, it's my bug, hold me "
+              "to it."),
+            L(f"Dá para começar por: {exemplos}",
+              f"You could start with: {exemplos}"),
         ]
     return [
         _escolher(v.saudacao, texto, dominio=dominio),
         v.convite,
-        f"Se quiser um ponto de partida: {exemplos}",
+        L(f"Se quiser um ponto de partida: {exemplos}",
+          f"If you want a starting point: {exemplos}"),
     ]
 
 
@@ -843,10 +912,15 @@ def nao_entendi(dom: Dominio, texto: str) -> list[str]:
     exemplos = "\n".join(f"- *{p}*" for p in dom.perguntas_exemplo[:4])
     return [
         voz(dom).admissao,
-        f"Neste painel eu sei falar de {metricas}, quebrando por {dims}. "
-        "Também explico como o produto funciona por dentro, se a dúvida for "
-        "essa: como o alerta nasce, o que é z robusto, por que a cascata tem "
-        "resíduo.",
-        "Se quiser, tente por um destes caminhos:",
+        L(f"Neste painel eu sei falar de {metricas}, quebrando por {dims}. "
+          "Também explico como o produto funciona por dentro, se a dúvida for "
+          "essa: como o alerta nasce, o que é z robusto, por que a cascata "
+          "tem resíduo.",
+          f"On this dashboard I can talk about {metricas}, split by {dims}. "
+          "I also explain how the product works inside, if that's the "
+          "question: how an alert is born, what a robust z is, why the "
+          "waterfall has a residual."),
+        L("Se quiser, tente por um destes caminhos:",
+          "If you like, try one of these:"),
         exemplos,
     ]

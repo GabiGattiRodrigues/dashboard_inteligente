@@ -147,8 +147,28 @@ def trecho(chave: str) -> Trecho:
     return TRECHOS[chave]
 
 
+def resumo(chave: str) -> str:
+    """O resumo do trecho na língua ativa."""
+    from .en import TRECHOS_EN
+    from .. import i18n
+    return TRECHOS_EN.get(chave, TRECHOS[chave].resumo) if i18n.en() \
+        else TRECHOS[chave].resumo
+
+
+def rotulo(chave: str) -> str:
+    """O rótulo curto do trecho ("IV, a · Incompatível...") na língua ativa."""
+    from .. import i18n
+    return i18n.V(TRECHOS[chave].rotulo)
+
+
 def citar(chaves: list[str] | tuple[str, ...]) -> str:
-    """"Carta Circular 4.001, art. 1º, IV, a; IV, n" — agrupando por norma."""
+    """"Carta Circular 4.001, art. 1º, IV, a; IV, n" — agrupando por norma.
+
+    Em inglês: "Circular Letter 4,001, art. 1, IV, a and IV, n". O dispositivo
+    não se traduz -- é o endereço que a analista procura no normativo.
+    """
+    from .en import dispositivo, norma as norma_en
+    from ..i18n import L
     por_norma: dict[str, list[str]] = {}
     for c in chaves:
         t = TRECHOS[c]
@@ -157,8 +177,11 @@ def citar(chaves: list[str] | tuple[str, ...]) -> str:
     for norma, disp in por_norma.items():
         # "art. 1º, IV, a" e "art. 1º, IV, n" viram "art. 1º, IV, a e IV, n"
         if all(d.startswith("art. 1º, ") for d in disp) and len(disp) > 1:
-            miolo = " e ".join(d.replace("art. 1º, ", "") for d in disp)
-            partes.append(f"{norma}, art. 1º, {miolo}")
+            miolo = L(" e ", " and ").join(d.replace("art. 1º, ", "")
+                                           for d in disp)
+            partes.append(f"{norma_en(norma)}, {dispositivo('art. 1º')}, "
+                          f"{miolo}")
         else:
-            partes.append(f"{norma}, " + "; ".join(disp))
+            partes.append(f"{norma_en(norma)}, "
+                          + "; ".join(dispositivo(d) for d in disp))
     return " · ".join(partes)

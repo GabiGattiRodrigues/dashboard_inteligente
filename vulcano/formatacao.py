@@ -1,16 +1,17 @@
-"""Formatação de números no padrão brasileiro."""
+"""Formatação de números — padrão brasileiro em português, padrão americano em
+inglês. O valor é o mesmo; muda o separador e o sufixo (mi/mil vira M/K)."""
 
 from __future__ import annotations
 
 import math
 from typing import Optional
 
+from .i18n import L, num
 from .semantica import Metrica
 
 
 def _br(x: float, casas: int) -> str:
-    s = f"{x:,.{casas}f}"
-    return s.replace(",", "@").replace(".", ",").replace("@", ".")
+    return num(x, casas)
 
 
 def numero(valor: Optional[float], m: Metrica, sinal: bool = False) -> str:
@@ -22,9 +23,9 @@ def numero(valor: Optional[float], m: Metrica, sinal: bool = False) -> str:
 
     if m.formato == "moeda":
         if v >= 1_000_000 and m.casas == 0:
-            return f"{pre}R$ {_br(v / 1_000_000, 2)} mi"
+            return f"{pre}R$ {_br(v / 1_000_000, 2)}{L(' mi', 'M')}"
         if v >= 10_000 and m.casas == 0:
-            return f"{pre}R$ {_br(v / 1_000, 1)} mil"
+            return f"{pre}R$ {_br(v / 1_000, 1)}{L(' mil', 'K')}"
         return f"{pre}R$ {_br(v, max(m.casas, 2) if v < 1000 else m.casas)}"
 
     if m.formato == "percentual":
@@ -34,7 +35,7 @@ def numero(valor: Optional[float], m: Metrica, sinal: bool = False) -> str:
         return f"{pre}{_br(v, m.casas)}"
 
     if v >= 1_000_000:
-        return f"{pre}{_br(v / 1_000_000, 2)} mi"
+        return f"{pre}{_br(v / 1_000_000, 2)}{L(' mi', 'M')}"
     return f"{pre}{_br(v, 0)}"
 
 

@@ -7,7 +7,9 @@ import functools
 import pathlib
 from typing import Optional
 
+from . import i18n
 from .formatacao import julgar, numero, pct
+from .i18n import L
 from .graficos import (EIXO, GRADE, JULGA_BOM, JULGA_RUIM, NEGATIVO, NEUTRO,
                        PLANO, POSITIVO, SERIE,
                        STATUS, SURFACE, TINTA, TINTA_2, TINTA_MUDA)
@@ -252,7 +254,7 @@ def html_moeda(texto: str) -> str:
 def cartao_metrica(
     rotulo: str, valor: float, m: Metrica,
     anterior: Optional[float] = None, delta_pct: Optional[float] = None,
-    rotulo_anterior: str = "período anterior",
+    rotulo_anterior: str = "",
 ) -> str:
     """
     Cartão de KPI.
@@ -275,11 +277,13 @@ def cartao_metrica(
         corpo += (f'<div class="delta" style="color:{cor}">{seta} '
                   f'{pct(delta_pct, 1, sinal=False)}</div>')
         if anterior is not None and anterior == anterior:
-            corpo += (f'<div class="ante">{html_moeda(numero(anterior, m))} no '
-                      f'{rotulo_anterior}</div>')
+            rot = rotulo_anterior or L("período anterior", "previous period")
+            corpo += (f'<div class="ante">{html_moeda(numero(anterior, m))} '
+                      f'{L("no", "in")} {rot}</div>')
     else:
         corpo += f'<div class="delta" style="color:{TINTA_MUDA}">—</div>'
-        corpo += '<div class="ante">sem base de comparação</div>'
+        corpo += (f'<div class="ante">'
+                  f'{L("sem base de comparação", "no baseline")}</div>')
 
     return corpo + "</div>"
 
@@ -303,9 +307,12 @@ def cartao_alerta(severidade: str, tipo: str, texto: str, acao: str,
     motivo = html_moeda(motivo) if motivo else None
     cor = STATUS.get(severidade, TINTA_MUDA)
     icone = {"alta": "▲", "media": "◆", "baixa": "●"}.get(severidade, "●")
-    nome = {"alta": "Severidade alta", "media": "Severidade média",
-            "baixa": "Severidade baixa"}.get(severidade, severidade)
-    origem = "limite de negócio" if tipo == "limite" else "desvio do histórico"
+    nome = {"alta": L("Severidade alta", "High severity"),
+            "media": L("Severidade média", "Medium severity"),
+            "baixa": L("Severidade baixa", "Low severity")}.get(severidade,
+                                                                severidade)
+    origem = (L("limite de negócio", "business limit") if tipo == "limite"
+              else L("desvio do histórico", "deviation from history"))
     return f"""<div class="vulc-alerta" style="border-left-color:{cor}">
       <div class="cab" style="color:{cor}">{icone} {nome} · {origem}</div>
       <div class="txt">{_negrito(texto)}</div>
@@ -329,9 +336,9 @@ def descrever_janela(j) -> tuple[str, str]:
     """
     ini, fim = j.inicio, j.fim
     if ini == fim:
-        return (ini.strftime("%d/%m/%Y"), DIAS_SEMANA[ini.weekday()])
-    datas = f"{ini.strftime('%d/%m/%Y')} — {fim.strftime('%d/%m/%Y')}"
-    return (datas, f"{j.dias} dias")
+        return (i18n.data(ini), i18n.dia_semana(ini))
+    datas = f"{i18n.data(ini)} — {i18n.data(fim)}"
+    return (datas, L(f"{j.dias} dias", f"{j.dias} days"))
 
 
 def cabecalho_comparacao(comp) -> str:
@@ -347,23 +354,24 @@ def cabecalho_comparacao(comp) -> str:
         # Base composta nao e uma janela: e a media de varias. Mostrar so a
         # primeira daria a impressao de comparacao simples, que e outra conta.
         b_datas = comp.rotulo_base()
-        b_det = f"média de {len(comp.anteriores)} dias iguais"
+        b_det = L(f"média de {len(comp.anteriores)} dias iguais",
+                  f"average of {len(comp.anteriores)} same weekdays")
     else:
         b_datas, b_det = descrever_janela(comp.anterior)
     return f"""<div class="vulc-comp">
       <div class="vulc-comp-bloco">
-        <div class="rot">Período selecionado</div>
+        <div class="rot">{L("Período selecionado", "Selected period")}</div>
         <div class="dat">{a_datas}</div>
         <div class="det">{a_det}</div>
       </div>
       <div class="vulc-comp-seta">vs</div>
       <div class="vulc-comp-bloco alt">
-        <div class="rot">Comparado com</div>
+        <div class="rot">{L("Comparado com", "Compared with")}</div>
         <div class="dat">{b_datas}</div>
         <div class="det">{b_det}</div>
       </div>
       <div class="vulc-comp-regra">
-        <div class="rot">Regra da comparação</div>
+        <div class="rot">{L("Regra da comparação", "Comparison rule")}</div>
         <div class="txt">{comp.descricao}</div>
       </div>
     </div>"""
@@ -378,10 +386,13 @@ def selo_construcao() -> str:
 
     Não é modéstia: quem abre um painel de portfólio julga o que vê, e um
     domínio em ajuste sem aviso passa por descuido em vez de obra em curso."""
-    return '<span class="vulc-wip">EM CONSTRUÇÃO</span>'
+    return (f'<span class="vulc-wip">'
+            f'{L("EM CONSTRUÇÃO", "UNDER CONSTRUCTION")}</span>')
 
 
 def selo(simulado: bool) -> str:
     if simulado:
-        return '<span class="vulc-sim">DADO SIMULADO</span>'
-    return '<span class="vulc-real">DADO PÚBLICO REAL</span>'
+        return (f'<span class="vulc-sim">'
+                f'{L("DADO SIMULADO", "SIMULATED DATA")}</span>')
+    return (f'<span class="vulc-real">'
+            f'{L("DADO PÚBLICO REAL", "REAL PUBLIC DATA")}</span>')

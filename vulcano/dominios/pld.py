@@ -239,6 +239,22 @@ DOMINIO = Dominio(
                   "norma, sem pressa de concluir — a decisão de comunicar é "
                   "sempre da analista."),
     extensao="vulcano.pld.agente",
+    guia_conversa=(
+        ("quais clientes precisam de atenção primeiro?",
+         "monta a fila por prioridade, com o prazo de 45 dias ao lado"),
+        ("me mostra o dossiê do T-01160",
+         "abre o cliente: o que disparou, a evidência em número e o "
+         "enquadramento na 4.001"),
+        ("o que é a R02?", "explica a regra: indicador, corte, condições e "
+                           "trecho da norma"),
+        ("qual regra tem mais falso positivo?",
+         "ranking das regras pela taxa de descarte dos alertas maduros"),
+        ("e por quê?", "decompõe a variação contra a base e mostra a cascata"),
+    ),
+    dica_conversa=("Dá para perguntar pelo código do cliente (T-, L- ou E- e o "
+                   "número), por uma regra (R01 a R10) ou pela norma — se for "
+                   "sobre a 3.978 ou a 4.001, eu cito o artigo. A decisão de "
+                   "comunicar é sempre da analista."),
     notas=[
         "DADO SIMULADO. A empresa, os clientes e os estabelecimentos são "
         "fictícios; documentos aparecem mascarados. As regras e as "
@@ -256,3 +272,212 @@ DOMINIO = Dominio(
         "outra data é reconstruída na aba Clientes em atenção.",
     ],
 )
+
+
+# --------------------------------------------------------------------------- #
+# English
+# --------------------------------------------------------------------------- #
+
+EN = {
+    "nome": "Compliance & AML",
+    "subtitulo": "Transaction monitoring, review queue and COAF",
+    "descricao": (
+        "How many alerts the rules select, how many turn into false "
+        "positives and whether the queue fits the 45-day deadline — and, "
+        "client by client, who falls under which situation of Circular "
+        "Letter 4,001 and where to start."
+    ),
+    "fonte": (
+        "SIMULATED DATA. No institution publishes its own AML alerts, so the "
+        "operation was generated with a declared structure: a fictional "
+        "employee-benefits platform with a digital account, ten rules "
+        "translated from Circular Letter 4,001, monthly suppression, an "
+        "analyst queue with limited capacity and planted typologies (pass-"
+        "through accounts, benefit-for-cash swaps at the border, "
+        "structuring). The rules and the regulatory references are real; the "
+        "clients are not."
+    ),
+    "metricas": {
+        "alertas": ("Alerts generated",
+                    "Alerts selected by the rules in the period, after the "
+                    "suppression of one alert per client, rule and month."),
+        "clientes_alertados": ("Clients with alerts",
+                               "Distinct clients with at least one alert in "
+                               "the period. A client with three rules counts "
+                               "once."),
+        "valor_envolvido": ("Amount involved",
+                            "Sum of the amount moved in each alert's window "
+                            "(7 or 30 days, depending on the rule)."),
+        "taxa_falso_positivo": ("False positive",
+                                "Share of alerts dismissed in review. Only "
+                                "alerts 45+ days old at the reference date "
+                                "count — among recent ones, only the easy "
+                                "cases have been decided.",
+                                "Dismissed alerts ÷ Mature alerts with a "
+                                "decision"),
+        "taxa_comunicacao": ("Conversion to report",
+                             "Share of alerts that ended in a report to COAF. "
+                             "The rule's precision. Mature alerts only.",
+                             "Alerts reported to COAF ÷ Mature alerts with a "
+                             "decision"),
+        "comunicacoes": ("Reports to COAF",
+                         "Alerts that ended in a suspicious activity report, "
+                         "by selection date. Mature alerts only: the current "
+                         "month has not had time to report yet, and counting "
+                         "everything would look like a drop."),
+        "pct_no_prazo": ("Reviews within 45 days",
+                         "Circular 3,978, art. 43, § 1. Counts completed "
+                         "alerts and open ones already past 45 days; an open "
+                         "alert within the deadline has no verdict yet.",
+                         "Alerts reviewed within 45 days ÷ Alerts whose "
+                         "deadline can already be checked"),
+        "fora_do_prazo": ("Overdue alerts",
+                          "Alerts reviewed more than 45 days after selection, "
+                          "or still open with more than 45 days at the "
+                          "reference date."),
+        "dias_analise": ("Average review time (days)",
+                         "Calendar days between selection and decision. "
+                         "Mature alerts only, for the same reason as false "
+                         "positives.",
+                         "Sum of days between selection and decision ÷ "
+                         "Mature alerts with a decision"),
+        "em_aberto": ("Open alerts at the reference date",
+                      "Of the alerts selected in the period, how many were "
+                      "still undecided on Aug 31, 2026. The queue on any "
+                      "other date is in the Clients to review tab."),
+        "com_no_prazo": ("Reports by next business day",
+                         "Circular 3,978, art. 48, § 2: the report must be "
+                         "filed by the business day after the decision to "
+                         "report.",
+                         "Reports filed by the next business day ÷ Reports"),
+    },
+    "dimensoes": {
+        "regra": ("Rule", "Monitoring rule that selected the alert."),
+        "situacao_4001": ("Circular Letter 4,001 situation",
+                          "Item and sub-item of art. 1 of 4,001 that the rule "
+                          "translates."),
+        "tipo_cliente": ("Client type",
+                         "Account holder (individual), client company or "
+                         "merchant."),
+        "produto": ("Product", "Where the signal is born: digital account, "
+                               "card, top-up or onboarding."),
+        "regiao": ("Region", "Client's region."),
+        "uf": ("State", "Client's state."),
+        "area": ("Risk area", "Municipality in a border region (4,001, XVII, "
+                              "a) or other areas."),
+        "faixa_risco": ("Customer risk rating",
+                        "Client risk classification (Circular 3,978, "
+                        "art. 20)."),
+        "pep": ("PEP", "Politically exposed person."),
+        "decisao": ("Decision", "Dismissed, enhanced monitoring, reported to "
+                                "COAF or still under review at the reference "
+                                "date."),
+        "faixa_valor": ("Amount band", "Amount involved in the alert."),
+        "tipo_regra": ("Rule type", "Volume-based, behavioral or onboarding "
+                                    "data."),
+        "ciclo": ("Frequency", "Daily rule or monthly batch cycle."),
+        "segmento": ("Client segment",
+                     "Size of the employer company, size of the client "
+                     "company or merchant category."),
+    },
+    "limites": [
+        "Circular 3,978, art. 43, § 1: the review cannot exceed 45 days from "
+        "selection. Below 100% is not poor performance, it is "
+        "non-compliance.",
+        "Circular 3,978, art. 48, § 2: the report must be filed by the "
+        "business day after the decision.",
+        "Above 92% dismissals the rule burns the team's time without "
+        "selecting anything — time to recalibrate, recorded in the internal "
+        "risk assessment.",
+    ],
+    "sinonimos_metrica": {
+        "alertas": ["alerts generated", "alert volume", "how many alerts",
+                    "number of alerts", "selected", "selection", "alerts"],
+        "clientes_alertados": ["clients with alerts", "alerted clients",
+                               "how many clients", "customers with alerts"],
+        "valor_envolvido": ["amount involved", "amount moved",
+                            "alerted amount", "value involved"],
+        "taxa_falso_positivo": ["false positive", "false positives",
+                                "dismissal", "dismissed", "noise",
+                                "dismissal rate"],
+        "taxa_comunicacao": ["conversion", "conversion to report", "precision",
+                             "report rate", "hit rate"],
+        "comunicacoes": ["reports", "reported", "coaf", "sar", "sars", "str",
+                         "suspicious activity reports"],
+        "pct_no_prazo": ["on time", "within the deadline", "sla",
+                         "45-day deadline", "deadline compliance"],
+        "fora_do_prazo": ["overdue", "past due", "late alerts",
+                          "missed the deadline"],
+        "dias_analise": ["review time", "analysis time", "days to review",
+                         "time to decision", "lead time"],
+        "em_aberto": ["open", "open alerts", "pending", "backlog"],
+        "com_no_prazo": ["d+1", "next business day", "reporting deadline"],
+    },
+    "sinonimos_dimensao": {
+        "regra": ["rule", "rules", "scenario", "scenarios"],
+        "situacao_4001": ["situation", "4001", "4,001", "typology",
+                          "red flag", "red flags"],
+        "tipo_cliente": ["client type", "customer type", "individual or company",
+                         "individual", "legal entity"],
+        "produto": ["product", "products", "pix", "card", "top-up"],
+        "regiao": ["region", "regions"],
+        "uf": ["state", "states"],
+        "area": ["border", "risk area", "high-risk area"],
+        "faixa_risco": ["risk rating", "customer risk", "risk band",
+                        "risk classification"],
+        "pep": ["pep", "politically exposed"],
+        "decisao": ["decision", "decisions", "outcome", "review outcome"],
+        "faixa_valor": ["amount band", "alert size"],
+        "tipo_regra": ["rule type", "volume-based", "behavioral"],
+        "ciclo": ["frequency", "monthly cycle", "daily"],
+        "segmento": ["segment", "company size", "merchant category"],
+    },
+    "perguntas_exemplo": [
+        "Which clients need attention first?",
+        "Which rule has the most false positives?",
+        "What explains the change in alerts vs last month?",
+        "What does Circular 3,978 say about the review deadline?",
+        "How many reports to COAF in the period?",
+        "Are alerts growing?",
+        "Show me the case file for client T-01160",
+    ],
+    "agente_papel": (
+        "I look after AML monitoring: the rules that select, the queue that "
+        "has to fit in 45 days, and every client who falls under Circular "
+        "Letter 4,001. I bring the red flag and the regulation, in no rush to "
+        "conclude — the decision to report is always the analyst's."
+    ),
+    "guia_conversa": [
+        ("which clients need attention first?",
+         "builds the queue by priority, with the 45-day deadline alongside"),
+        ("show me the case file for T-01160",
+         "opens the client: what fired, the evidence in numbers and where it "
+         "fits in 4,001"),
+        ("what is R02?", "explains the rule: indicator, threshold, conditions "
+                         "and the regulation it rests on"),
+        ("which rule has the most false positives?",
+         "ranks the rules by the dismissal rate of mature alerts"),
+        ("and why?", "breaks the change down against the baseline and draws "
+                     "the waterfall"),
+    ],
+    "dica_conversa": (
+        "You can ask by client code (T-, L- or E- plus the number), by rule "
+        "(R01 to R10) or about the regulation — for 3,978 or 4,001, I cite "
+        "the article. The decision to report is always the analyst's."
+    ),
+    "notas": [
+        "SIMULATED DATA. The company, clients and merchants are fictional; "
+        "documents are masked. The rules and regulatory references are real.",
+        "False positive, conversion to report and review time only count "
+        "alerts 45+ days old on Aug 31, 2026. Among recent ones only the easy "
+        "cases have been decided, and the rate would be skewed — which is why "
+        "these series end 45 days before the end.",
+        "Suppression: one alert per client, per rule, per month. The same "
+        "pass-through account does not generate one alert per day.",
+        "The R01 threshold dropped from 4× to 3× income on Mar 1, 2026. The "
+        "break in alert volume on that date is a policy change, not a change "
+        "in client behavior.",
+        "\"Open alerts\" is the position on Aug 31, 2026. The queue on any "
+        "other date is rebuilt in the Clients to review tab.",
+    ],
+}

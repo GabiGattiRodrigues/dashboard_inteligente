@@ -181,6 +181,19 @@ DOMINIO = Dominio(
                   "Leio a carteira safra a safra e cobro MOB antes de afirmar "
                   "qualquer coisa sobre risco — safra jovem, para mim, aparece "
                   "vazia e nunca como zero."),
+    guia_conversa=(
+        ("qual a originação?", "dá o volume liberado no período selecionado"),
+        ("e por quê?", "decompõe a variação contra a base e mostra a cascata"),
+        ("e por canal?", "refaz a mesma leitura quebrada por canal"),
+        ("e o over30?", "troca só a métrica — e avisa se a safra ainda não "
+                        "completou o MOB"),
+        ("quais as piores faixas de score em over30?",
+         "ranking lido como risco: pior é a inadimplência mais ALTA"),
+    ),
+    dica_conversa=("Inadimplência é sempre por safra, com MOB respeitado. Se o "
+                   "período for recente demais, a resposta vem vazia de "
+                   "propósito — amplie o período para trás para alcançar "
+                   "safras maduras."),
     notas=[
         "DADO SIMULADO. Nenhum número deste domínio vem de carteira real.",
         "Inadimplência é sempre lida por safra de originação com MOB respeitado: "
@@ -192,3 +205,157 @@ DOMINIO = Dominio(
         "diária de over30 termina antes do fim do período. Isso e proposital.",
     ],
 )
+
+
+# --------------------------------------------------------------------------- #
+# English
+# --------------------------------------------------------------------------- #
+
+EN = {
+    "nome": "Credit",
+    "subtitulo": "Origination, policy and risk by vintage",
+    "descricao": (
+        "How much was originated, under which policy, and how each vintage "
+        "behaved afterwards. The dashboard for whoever owns volume without "
+        "blowing the risk budget — and where misreading MOB makes a bad "
+        "portfolio look great."
+    ),
+    "fonte": (
+        "SIMULATED PORTFOLIO. There is no public credit dataset with "
+        "origination date and delinquency flags, so the portfolio was "
+        "generated with a declared structure: maturation curve, a policy "
+        "shock in Sep–Nov 2017, tightening in 2018 and right-censoring on "
+        "young vintages. The modeling is real; the data is not."
+    ),
+    "metricas": {
+        "originacao": ("Origination", "Total amount disbursed in the period."),
+        "propostas": ("Applications", "Credit applications received."),
+        "contratos": ("Approved contracts",
+                      "Applications that became contracts."),
+        "taxa_aprovacao": ("Approval rate",
+                           "Approved applications over applications received.",
+                           "Approved contracts ÷ Applications"),
+        "ticket_medio": ("Average ticket",
+                         "Average amount disbursed per approved contract.",
+                         "Origination ÷ Approved contracts"),
+        "prazo_medio": ("Average term", "Average contracted term, in months.",
+                        "Sum of terms ÷ Approved contracts"),
+        "juros_medio": ("Average interest (% per month)",
+                        "Average monthly rate of originated contracts.",
+                        "Sum of rates ÷ Approved contracts"),
+        "saldo": ("Outstanding balance",
+                  "Remaining outstanding balance of the portfolio."),
+        "over30_mob3": ("Over30 at MOB3",
+                        "Contracts more than 30 days past due by month 3 on "
+                        "book. Only vintages with 3 full months count.",
+                        "Contracts >30 days past due ÷ Contracts in mature "
+                        "vintages"),
+        "over90_mob6": ("Over90 at MOB6",
+                        "More than 90 days past due by month 6 on book. Only "
+                        "vintages with 6 full months count.",
+                        "Contracts >90 days past due ÷ Contracts in mature "
+                        "vintages"),
+        "default_mob12": ("Default at MOB12",
+                          "Confirmed loss by month 12. Only vintages with 12 "
+                          "full months count.",
+                          "Contracts in loss ÷ Contracts in mature vintages"),
+        "perda_esperada": ("Expected loss",
+                           "Over90 balance over the balance of mature "
+                           "vintages.",
+                           "Over90 balance ÷ Balance of mature vintages"),
+    },
+    "dimensoes": {
+        "faixa_score": ("Score band", "Applicant's score band at entry."),
+        "canal": ("Channel", "Channel the application came through."),
+        "produto": ("Product", "Credit line contracted."),
+        "faixa_renda": ("Income band",
+                        "Declared income band, in minimum wages."),
+        "regiao": ("Region", "Applicant's region."),
+        "estado": ("State", "Applicant's state."),
+        "safra": ("Vintage", "Origination month of the contract."),
+        "decisao": ("Decision", "Whether the application was approved or "
+                                "declined."),
+        "faixa_prazo": ("Term band", "Contract term band, in months."),
+        "faixa_ticket": ("Ticket band", "Band of the amount disbursed."),
+        "faixa_taxa": ("Rate band", "Band of the monthly interest rate."),
+    },
+    "limites": [
+        "Above 5.5% over30 at MOB3, credit policy is reviewed.",
+        "Over90 above 3% at MOB6 breaks the approved risk appetite.",
+        "Approval above 72% usually signals a loosened policy.",
+    ],
+    "sinonimos_metrica": {
+        "originacao": ["origination", "originated", "disbursed",
+                       "disbursement", "loan volume", "volume originated"],
+        "propostas": ["application", "applications", "credit requests"],
+        "contratos": ["contract", "contracts", "approved contracts",
+                      "approvals"],
+        "taxa_aprovacao": ["approval", "approval rate", "approval ratio"],
+        "ticket_medio": ["ticket", "average ticket", "average loan",
+                         "average contract value", "loan size"],
+        "prazo_medio": ["term", "average term", "months"],
+        "juros_medio": ["interest", "interest rate", "average rate", "apr"],
+        "saldo": ["balance", "portfolio", "outstanding", "outstanding balance"],
+        "over30_mob3": ["over30", "over 30", "30 days past due", "30 dpd",
+                        "dpd30", "delinquency 30", "mob3"],
+        "over90_mob6": ["over90", "over 90", "90 days past due", "90 dpd",
+                        "delinquency", "default rate 90", "mob6"],
+        "default_mob12": ["default", "loss", "write off", "write-off",
+                          "charge-off", "mob12"],
+        "perda_esperada": ["expected loss", "provision", "provisions"],
+    },
+    "sinonimos_dimensao": {
+        "faixa_score": ["score", "score band", "credit score", "rating"],
+        "canal": ["channel", "channels", "source"],
+        "produto": ["product", "products", "credit line", "loan type"],
+        "faixa_renda": ["income", "income band", "salary"],
+        "regiao": ["region", "regions"],
+        "estado": ["state", "states"],
+        "safra": ["vintage", "vintages", "cohort", "cohorts"],
+        "decisao": ["decision", "approved or declined", "declined"],
+        "faixa_prazo": ["term band", "loan term", "contract term"],
+        "faixa_ticket": ["ticket band", "loan size band", "amount band"],
+        "faixa_taxa": ["rate band", "interest band"],
+    },
+    "perguntas_exemplo": [
+        "What was origination in the period?",
+        "What is over30 delinquency by vintage?",
+        "Why did the approval rate change vs last month?",
+        "Which are the worst channels for over30?",
+        "Is origination growing?",
+        "Is anything out of pattern on the last day?",
+        "Which score band concentrates the loss?",
+    ],
+    "agente_papel": (
+        "I look after credit: origination, policy and risk by vintage. I read "
+        "the portfolio vintage by vintage and insist on MOB before saying "
+        "anything about risk — to me a young vintage shows up empty, never as "
+        "zero."
+    ),
+    "guia_conversa": [
+        ("what was origination?",
+         "gives the amount disbursed in the selected period"),
+        ("and why?", "breaks the change down against the baseline and draws "
+                     "the waterfall"),
+        ("and by channel?", "redoes the same reading, split by channel"),
+        ("what about over30?", "switches only the metric — and warns you if "
+                               "the vintage has not reached MOB yet"),
+        ("which are the worst score bands for over30?",
+         "a ranking read as risk: worst is the HIGHEST delinquency"),
+    ],
+    "dica_conversa": (
+        "Delinquency is always by vintage, with MOB respected. If the period "
+        "is too recent, the answer comes back empty on purpose — extend the "
+        "period backwards to reach mature vintages."
+    ),
+    "notas": [
+        "SIMULATED DATA. No number in this domain comes from a real portfolio.",
+        "Delinquency is always read by origination vintage with MOB "
+        "respected: a vintage only counts after 3, 6 or 12 months on book. A "
+        "young vintage shows up empty, never as zero — filling it with zero "
+        "is what makes a dashboard show risk falling when it simply has not "
+        "had time to show up.",
+        "Because recent vintages are left out of the risk metrics, the daily "
+        "over30 series ends before the end of the period. This is on purpose.",
+    ],
+}

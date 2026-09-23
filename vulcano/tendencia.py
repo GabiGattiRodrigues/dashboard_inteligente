@@ -34,9 +34,13 @@ import pandas as pd
 
 from .dados import Filtros, serie_diaria
 from .formatacao import numero, pct
+from . import i18n
+from .i18n import L
 from .semantica import Dominio
 
 DIAS_PT = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
+DIAS_EN = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
+           "Sunday"]
 
 
 @dataclass
@@ -142,7 +146,8 @@ def analisar(
     perfil = (
         df.groupby("dia_semana")["valor"].mean().reindex(range(7)).reset_index()
     )
-    perfil["dia"] = [DIAS_PT[i] for i in perfil["dia_semana"]]
+    dias = DIAS_EN if i18n.en() else DIAS_PT
+    perfil["dia"] = [dias[i] for i in perfil["dia_semana"]]
     perfil["indice"] = perfil["valor"] / nivel if nivel else np.nan
     amp = (
         float(perfil["indice"].max() - perfil["indice"].min())
@@ -164,56 +169,82 @@ def descrever(tend: Tendencia) -> list[str]:
     m = tend.dominio.metrica(tend.chave_metrica)
     out: list[str] = []
 
+    incl = numero(tend.inclinacao_dia, m, sinal=True)
+    nivel = numero(tend.nivel_medio, m)
     if tend.direcao == "estavel":
-        out.append(
+        out.append(L(
             f"**{m.rotulo} está estável** no período. A reta ajustada inclina "
-            f"{numero(tend.inclinacao_dia, m, sinal=True)} por dia, mas com t = "
+            f"{incl} por dia, mas com t = "
             f"{tend.t_stat:.2f} (p = {tend.p_valor:.2f}) isso não se distingue de "
-            f"ruído. Nível médio de {numero(tend.nivel_medio, m)} em "
-            f"{tend.n_dias} dias."
-        )
+            f"ruído. Nível médio de {nivel} em {tend.n_dias} dias.",
+            f"**{m.rotulo} is stable** in the period. The fitted line slopes "
+            f"{incl} per day, but with t = {tend.t_stat:.2f} "
+            f"(p = {tend.p_valor:.2f}) that is indistinguishable from noise. "
+            f"Average level of {nivel} over {tend.n_dias} days."
+        ))
     else:
-        out.append(
-            f"**{m.rotulo} em {tend.direcao}**: {numero(tend.inclinacao_dia, m, sinal=True)} "
+        out.append(L(
+            f"**{m.rotulo} em {tend.direcao}**: {incl} "
             f"por dia, o equivalente a {pct(tend.inclinacao_pct_mes)} ao mês sobre o "
-            f"nível médio de {numero(tend.nivel_medio, m)}. A inclinação e "
+            f"nível médio de {nivel}. A inclinação é "
             f"estatisticamente distinguível de zero (t = {tend.t_stat:.2f}, "
-            f"p = {tend.p_valor:.3f}), em {tend.n_dias} dias."
-        )
+            f"p = {tend.p_valor:.3f}), em {tend.n_dias} dias.",
+            f"**{m.rotulo} "
+            f"{'trending up' if tend.direcao == 'alta' else 'trending down'}**: "
+            f"{incl} per day, equivalent to {pct(tend.inclinacao_pct_mes)} a "
+            f"month over the average level of {nivel}. The slope is "
+            f"statistically distinguishable from zero (t = {tend.t_stat:.2f}, "
+            f"p = {tend.p_valor:.3f}), over {tend.n_dias} days."
+        ))
 
     if tend.momento is not None and np.isfinite(tend.momento):
+        m7, m28 = numero(tend.media_7, m), numero(tend.media_28_anterior, m)
         if abs(tend.momento) < 0.03:
-            out.append(
+            out.append(L(
                 f"**Sem aceleração.** Os últimos 7 dias rodaram a "
-                f"{numero(tend.media_7, m)}, praticamente o mesmo dos 28 anteriores "
-                f"({numero(tend.media_28_anterior, m)})."
-            )
+                f"{m7}, praticamente o mesmo dos 28 anteriores ({m28}).",
+                f"**No acceleration.** The last 7 days ran at {m7}, "
+                f"practically the same as the previous 28 ({m28})."
+            ))
         else:
-            verbo = "acelerou" if tend.momento > 0 else "desacelerou"
-            out.append(
-                f"**A métrica {verbo}**: últimos 7 dias a {numero(tend.media_7, m)} "
-                f"contra {numero(tend.media_28_anterior, m)} nos 28 dias anteriores, "
+            sobe = tend.momento > 0
+            out.append(L(
+                f"**A métrica {'acelerou' if sobe else 'desacelerou'}**: "
+                f"últimos 7 dias a {m7} contra {m28} nos 28 dias anteriores, "
+                f"{pct(tend.momento)}.",
+                f"**The metric {'accelerated' if sobe else 'decelerated'}**: "
+                f"last 7 days at {m7} against {m28} in the previous 28 days, "
                 f"{pct(tend.momento)}."
-            )
+            ))
 
     if abs(tend.sequencia) >= 4:
-        lado = "acima" if tend.sequencia > 0 else "abaixo"
-        out.append(
-            f"**{abs(tend.sequencia)} dias seguidos {lado} da mediana movel de 28 "
-            f"dias.** Sequência desse tamanho e mais compatível com mudanca de "
-            f"patamar do que com oscilação."
-        )
+        acima = tend.sequencia > 0
+        out.append(L(
+            f"**{abs(tend.sequencia)} dias seguidos "
+            f"{'acima' if acima else 'abaixo'} da mediana móvel de 28 "
+            f"dias.** Sequência desse tamanho é mais compatível com mudança de "
+            f"patamar do que com oscilação.",
+            f"**{abs(tend.sequencia)} days in a row "
+            f"{'above' if acima else 'below'} the 28-day rolling median.** A "
+            f"streak that long fits a change of level better than an "
+            f"oscillation."
+        ))
 
     if tend.amplitude_semanal and tend.amplitude_semanal > 0.15:
         p = tend.perfil_semanal.dropna(subset=["indice"])
         if not p.empty:
             alto = p.loc[p["indice"].idxmax()]
             baixo = p.loc[p["indice"].idxmin()]
-            out.append(
+            out.append(L(
                 f"**Tem sazonalidade semanal forte**: {alto['dia']} roda "
                 f"{pct(alto['indice'] - 1)} contra a média e {baixo['dia']} "
                 f"{pct(baixo['indice'] - 1)}. Comparar dia com dia anterior aqui "
-                f"mistura calendário com desempenho — o certo e comparar com D-7."
-            )
+                f"mistura calendário com desempenho — o certo é comparar com D-7.",
+                f"**There is strong weekly seasonality**: {alto['dia']} runs "
+                f"{pct(alto['indice'] - 1)} against the average and "
+                f"{baixo['dia']} {pct(baixo['indice'] - 1)}. Comparing a day "
+                f"with the previous day here mixes calendar with performance "
+                f"— the right comparison is against D-7."
+            ))
 
     return out

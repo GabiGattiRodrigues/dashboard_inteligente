@@ -38,8 +38,15 @@ import pandas as pd
 
 from .dados import Filtros, agregar
 from .formatacao import moeda, numero, pct, variacao_pct
+from .i18n import L, V
 from .periodos import Comparacao
 from .semantica import Dominio
+
+
+# Nome em inglês das entidades que as métricas de contagem distinta contam.
+ENTIDADES_EN = {"pedido": "order", "cliente": "customer", "contrato": "contract",
+                "pessoa": "person", "alerta": "alert", "registro": "record",
+                "razao_de_medias": "ratio-of-averages value"}
 
 
 @dataclass
@@ -146,7 +153,8 @@ def decompor(
                     if entidade in x.unica_por][:3]
         alt_mets = [x.rotulo.lower() for x in dom.metricas.values()
                     if x.num_aditivo][:3]
-        aviso = (
+        ent_en = ENTIDADES_EN.get(entidade, entidade)
+        aviso = L((
             f"**{m.rotulo}** conta {entidade}s distintos, e um mesmo "
             f"{entidade} pode aparecer em mais de um valor de "
             f"**{d.rotulo.lower()}** — então ele entra em mais de um segmento e "
@@ -157,7 +165,18 @@ def decompor(
             + (f" ({', '.join(alt_dims)})" if alt_dims else "")
             + (f", ou uma métrica aditiva como {', '.join(alt_mets)}."
                if alt_mets else ".")
-        )
+        ), (
+            f"**{m.rotulo}** counts distinct {ent_en}s, and the same "
+            f"{ent_en} can show up under more than one value of "
+            f"**{d.rotulo.lower()}** — so it enters more than one segment and "
+            f"the bars don't add up to the total. The residual below measures "
+            f"exactly that overlap: it is exposed, not spread across the "
+            f"bars. For a decomposition that closes, use a dimension that is "
+            f"unique per {ent_en}"
+            + (f" ({', '.join(alt_dims)})" if alt_dims else "")
+            + (f", or an additive metric such as {', '.join(alt_mets)}."
+               if alt_mets else ".")
+        ))
 
     df["contrib_abs"] = df["contribuicao"].abs()
     df = df.sort_values("contrib_abs", ascending=False).reset_index(drop=True)
@@ -203,13 +222,17 @@ def explicar(dec: Decomposicao, quantos: int = 3) -> list[str]:
     d = dec.dominio.dimensao(dec.chave_dimensao)
     linhas: list[str] = []
 
-    direcao = "subiu" if dec.delta > 0 else "caiu"
-    linhas.append(
-        f"**{m.rotulo}** {direcao} de {numero(dec.total_a, m)} para "
+    linhas.append(L(
+        f"**{m.rotulo}** {'subiu' if dec.delta > 0 else 'caiu'} de "
+        f"{numero(dec.total_a, m)} para "
         f"{numero(dec.total_b, m)} — variação de {numero(dec.delta, m, sinal=True)} "
         f"({pct(dec.delta_pct)}), comparando {dec.comparacao.atual} contra "
-        f"{dec.comparacao.anterior}."
-    )
+        f"{dec.comparacao.anterior}.",
+        f"**{m.rotulo}** {'rose' if dec.delta > 0 else 'fell'} from "
+        f"{numero(dec.total_a, m)} to {numero(dec.total_b, m)} — a change of "
+        f"{numero(dec.delta, m, sinal=True)} ({pct(dec.delta_pct)}), comparing "
+        f"{dec.comparacao.atual} against {dec.comparacao.anterior}."
+    ))
 
     reais = dec.df[~dec.df["segmento"].str.startswith("Outros (")]
     topo = reais.head(quantos)
@@ -218,46 +241,60 @@ def explicar(dec: Decomposicao, quantos: int = 3) -> list[str]:
         contrib, share = r["contribuicao"], r["share_da_variacao"]
         if abs(contrib) < 1e-12:
             continue
-        papel = "puxou para baixo" if contrib < 0 else "puxou para cima"
-        cab = (
-            f"**{r['segmento']}** {papel} {numero(abs(contrib), m)} "
-            f"— {pct(abs(share), 0, sinal=False)} de toda a variação."
+        seg = V(r["segmento"])
+        va, vb = numero(r['valor_a'], m), numero(r['valor_b'], m)
+        pa, pb = (pct(r['peso_a'], 1, sinal=False),
+                  pct(r['peso_b'], 1, sinal=False))
+        cab = L(
+            f"**{seg}** {'puxou para baixo' if contrib < 0 else 'puxou para cima'} "
+            f"{numero(abs(contrib), m)} "
+            f"— {pct(abs(share), 0, sinal=False)} de toda a variação.",
+            f"**{seg}** {'pulled down' if contrib < 0 else 'pulled up'} "
+            f"{numero(abs(contrib), m)} "
+            f"— {pct(abs(share), 0, sinal=False)} of the whole change."
         )
 
         if dec.eh_razao:
             partes = []
             if abs(r["efeito_taxa"]) > 1e-12:
-                partes.append(
-                    f"*efeito taxa* {numero(r['efeito_taxa'], m, sinal=True)}: dentro "
-                    f"do segmento a métrica foi de {numero(r['valor_a'], m)} para "
-                    f"{numero(r['valor_b'], m)}, e o segmento pesava "
-                    f"{pct(r['peso_a'], 1, sinal=False)} da base "
-                    f"({numero(r['valor_b'], m)} − {numero(r['valor_a'], m)} = "
-                    f"{numero(r['valor_b'] - r['valor_a'], m, sinal=True)}, "
-                    f"vezes {pct(r['peso_a'], 1, sinal=False)})"
-                )
+                et = numero(r['efeito_taxa'], m, sinal=True)
+                dif = numero(r['valor_b'] - r['valor_a'], m, sinal=True)
+                partes.append(L(
+                    f"*efeito taxa* {et}: dentro do segmento a métrica foi de "
+                    f"{va} para {vb}, e o segmento pesava {pa} da base "
+                    f"({vb} − {va} = {dif}, vezes {pa})",
+                    f"*rate effect* {et}: within the segment the metric went "
+                    f"from {va} to {vb}, and the segment weighed {pa} of the "
+                    f"base ({vb} − {va} = {dif}, times {pa})"
+                ))
             if abs(r["efeito_mix"]) > 1e-12:
-                mov = "ganhou" if r["peso_b"] > r["peso_a"] else "perdeu"
-                partes.append(
-                    f"*efeito mix* {numero(r['efeito_mix'], m, sinal=True)}: o segmento "
-                    f"{mov} participação, de {pct(r['peso_a'], 1, sinal=False)} para "
-                    f"{pct(r['peso_b'], 1, sinal=False)}, e ele roda a "
-                    f"{numero(r['valor_a'], m)} contra "
-                    f"{numero(dec.total_a, m)} da média geral"
-                )
+                ganhou = r["peso_b"] > r["peso_a"]
+                em = numero(r['efeito_mix'], m, sinal=True)
+                partes.append(L(
+                    f"*efeito mix* {em}: o segmento "
+                    f"{'ganhou' if ganhou else 'perdeu'} participação, de {pa} "
+                    f"para {pb}, e ele roda a {va} contra "
+                    f"{numero(dec.total_a, m)} da média geral",
+                    f"*mix effect* {em}: the segment "
+                    f"{'gained' if ganhou else 'lost'} share, from {pa} to "
+                    f"{pb}, and it runs at {va} against "
+                    f"{numero(dec.total_a, m)} for the overall average"
+                ))
             if abs(r["interacao"]) > 1e-12:
-                partes.append(
-                    f"*interação* {numero(r['interacao'], m, sinal=True)}: mudou de "
-                    f"tamanho e de patamar ao mesmo tempo"
-                )
+                ei = numero(r['interacao'], m, sinal=True)
+                partes.append(L(
+                    f"*interação* {ei}: mudou de tamanho e de patamar ao mesmo "
+                    f"tempo",
+                    f"*interaction* {ei}: it changed size and level at the "
+                    f"same time"
+                ))
             if partes:
-                cab += " Isso se abre em " + "; ".join(partes) + "."
+                cab += L(" Isso se abre em ", " That breaks down into ") \
+                    + "; ".join(partes) + "."
         else:
-            cab += (
-                f" Saiu de {numero(r['valor_a'], m)} para {numero(r['valor_b'], m)} "
-                f"({numero(r['valor_b'], m)} − {numero(r['valor_a'], m)} = "
-                f"{numero(contrib, m, sinal=True)})."
-            )
+            cn = numero(contrib, m, sinal=True)
+            cab += L(f" Saiu de {va} para {vb} ({vb} − {va} = {cn}).",
+                     f" It went from {va} to {vb} ({vb} − {va} = {cn}).")
         linhas.append(cab)
 
     if dec.eh_razao:
@@ -266,25 +303,40 @@ def explicar(dec: Decomposicao, quantos: int = 3) -> list[str]:
         i = dec.df["interacao"].sum()
         if abs(t) + abs(x) > 1e-12:
             dominante = "taxa" if abs(t) >= abs(x) else "mix"
-            leitura = (
-                "os segmentos em si mudaram de patamar — a ação e dentro do segmento"
-                if dominante == "taxa"
-                else "os segmentos não mudaram tanto; mudou quem comprou — a ação e "
-                     "em aquisição e mix, não na operação do segmento"
-            )
-            linhas.append(
-                f"**Leitura geral.** Somando tudo: efeito taxa "
-                f"{numero(t, m, sinal=True)}, efeito mix {numero(x, m, sinal=True)}, "
-                f"interação {numero(i, m, sinal=True)}. Predomina o efeito "
-                f"**{dominante}** — {leitura}."
-            )
+            tn, xn, iN = (numero(t, m, sinal=True), numero(x, m, sinal=True),
+                          numero(i, m, sinal=True))
+            if dominante == "taxa":
+                leitura = L("os segmentos em si mudaram de patamar — a ação é "
+                            "dentro do segmento",
+                            "the segments themselves changed level — the "
+                            "action is inside the segment")
+            else:
+                leitura = L("os segmentos não mudaram tanto; mudou quem comprou "
+                            "— a ação é em aquisição e mix, não na operação do "
+                            "segmento",
+                            "the segments didn't change much; who bought "
+                            "changed — the action is in acquisition and mix, "
+                            "not in the segment's operations")
+            linhas.append(L(
+                f"**Leitura geral.** Somando tudo: efeito taxa {tn}, efeito "
+                f"mix {xn}, interação {iN}. Predomina o efeito "
+                f"**{dominante}** — {leitura}.",
+                f"**Overall reading.** Adding it all up: rate effect {tn}, mix "
+                f"effect {xn}, interaction {iN}. The "
+                f"**{'rate' if dominante == 'taxa' else 'mix'}** effect "
+                f"dominates — {leitura}."
+            ))
 
     if abs(dec.residuo) > max(1e-6, abs(dec.delta) * 0.001):
-        linhas.append(
-            f"**Resíduo de {numero(dec.residuo, m, sinal=True)}** entre a soma dos "
-            f"segmentos e a variação total. Vem da sobreposição entre pedido e item "
-            f"descrita acima; está exposto de proposito, e não redistribuido."
-        )
+        rn = numero(dec.residuo, m, sinal=True)
+        linhas.append(L(
+            f"**Resíduo de {rn}** entre a soma dos segmentos e a variação "
+            f"total. Vem da sobreposição entre pedido e item descrita acima; "
+            f"está exposto de propósito, e não redistribuído.",
+            f"**Residual of {rn}** between the sum of the segments and the "
+            f"total change. It comes from the overlap described above; it is "
+            f"exposed on purpose, not redistributed."
+        ))
 
     return linhas
 
@@ -298,11 +350,12 @@ def dados_cascata(dec: Decomposicao) -> pd.DataFrame:
     for _, r in dec.df.iterrows():
         if abs(r["contribuicao"]) < 1e-12:
             continue
-        linhas.append({"rotulo": r["segmento"], "valor": float(r["contribuicao"]),
-                       "tipo": "delta"})
+        linhas.append({"rotulo": V(r["segmento"]),
+                       "valor": float(r["contribuicao"]), "tipo": "delta"})
     if abs(dec.residuo) > max(1e-6, abs(dec.delta) * 0.001):
-        linhas.append({"rotulo": "Resíduo (sobreposição)", "valor": dec.residuo,
-                       "tipo": "delta"})
+        linhas.append({"rotulo": L("Resíduo (sobreposição)",
+                                   "Residual (overlap)"),
+                       "valor": dec.residuo, "tipo": "delta"})
     linhas.append({"rotulo": str(dec.comparacao.atual), "valor": dec.total_b,
                    "tipo": "total"})
     return pd.DataFrame(linhas)

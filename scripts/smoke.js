@@ -1,7 +1,28 @@
 // Percorre o app inteiro no navegador e reporta qualquer excecao do Streamlit.
 const { chromium } = require('playwright');
 
-const URL = process.env.VULC_URL || 'http://localhost:8511';
+// VULC_LANG=en percorre o app em ingles (abre com ?lang=en).
+const LANG = process.env.VULC_LANG === 'en' ? 'en' : 'pt';
+const URL = (process.env.VULC_URL || 'http://localhost:8511') + `/?lang=${LANG}`;
+const T = LANG === 'en' ? {
+  dominios: ['Marketing & CRM', 'Credit', 'Product & Operations',
+             'Compliance & AML', 'People Analytics'],
+  pld: 'Compliance & AML', abrir: 'Open', voltar: /Back to the home page/,
+  alertas: 'Alerts', agente: /^Ask /, clientes: 'Clients to review',
+  visao: 'Overview', regras: 'Rules & calibration',
+  comparacao: 'Period comparison', causa: 'Root cause', sobre: 'About the data',
+  verDia: /See that day/, registrar: /Record decision/,
+  justificativa: /source proven/,
+} : {
+  dominios: ['Marketing e CRM', 'Crédito', 'Produto e Operação',
+             'Compliance e PLD', 'People Analytics'],
+  pld: 'Compliance e PLD', abrir: 'Abrir', voltar: /Voltar para a capa/,
+  alertas: 'Alertas', agente: /^Pergunte a?[oà] /,
+  clientes: 'Clientes em atenção', visao: 'Visão geral',
+  regras: 'Regras e calibração', comparacao: 'Comparação de períodos',
+  causa: 'Causa raiz', sobre: 'Sobre os dados', verDia: /Ver esse dia/,
+  registrar: /Registrar decisão/, justificativa: /origem comprovada/,
+};
 const OUT = process.env.VULC_OUT || '/tmp/shots';
 const fs = require('fs');
 fs.mkdirSync(OUT, { recursive: true });
@@ -50,20 +71,18 @@ async function checarErros(page, onde) {
   await page.screenshot({ path: `${OUT}/00-capa.png`, fullPage: true });
 
   // VULC_DOMINIOS="Compliance e PLD" roda so um dominio.
-  const todos = ['Marketing e CRM', 'Crédito', 'Produto e Operação',
-                 'Compliance e PLD', 'People Analytics'];
+  const todos = T.dominios;
   const dominios = process.env.VULC_DOMINIOS
     ? todos.filter(d => process.env.VULC_DOMINIOS.split(',').includes(d))
     : todos;
   // A aba do agente muda de nome por dominio: casada por prefixo.
   // "à" para a Abigail e a Ravena, "ao" para o Bailey e o R2 -- o painel
   // conjuga pelo genero do agente, entao o teste tem de aceitar os dois.
-  const abasPadrao = ['Alertas', /^Pergunte a?[oà] /, 'Visão geral',
-                      'Comparação de períodos', 'Causa raiz', 'Sobre os dados'];
+  const abasPadrao = [T.alertas, T.agente, T.visao, T.comparacao, T.causa,
+                      T.sobre];
   // Compliance tem duas abas a mais: a fila cliente a cliente e as regras.
-  const abasPld = ['Alertas', /^Pergunte a?[oà] /, 'Clientes em atenção',
-                   'Visão geral', 'Regras e calibração',
-                   'Comparação de períodos', 'Causa raiz', 'Sobre os dados'];
+  const abasPld = [T.alertas, T.agente, T.clientes, T.visao, T.regras,
+                   T.comparacao, T.causa, T.sobre];
 
   for (let di = 0; di < dominios.length; di++) {
     const nome = dominios[di];
@@ -71,16 +90,16 @@ async function checarErros(page, onde) {
     if (di > 0) {
       await page.keyboard.press('Escape').catch(() => {});
       await page.waitForTimeout(300);
-      const voltar = page.getByRole('button', { name: /Voltar para a capa/ });
+      const voltar = page.getByRole('button', { name: T.voltar });
       if (await voltar.count()) { await voltar.first().click(); await calma(page, 2500); }
     }
-    const btn = page.getByRole('button', { name: new RegExp(`Abrir ${nome}`) });
-    if (!(await btn.count())) { problemas.push(`botao "Abrir ${nome}" nao encontrado`); continue; }
+    const btn = page.getByRole('button', { name: `${T.abrir} ${nome}` });
+    if (!(await btn.count())) { problemas.push(`botao "${T.abrir} ${nome}" nao encontrado`); continue; }
     await btn.first().click();
     await calma(page, 3000);
     if (await checarErros(page, `${nome} / carregamento`)) continue;
 
-    const abas = nome === 'Compliance e PLD' ? abasPld : abasPadrao;
+    const abas = nome === T.pld ? abasPld : abasPadrao;
     for (let ai = 0; ai < abas.length; ai++) {
       // Fecha qualquer popover/dialogo aberto (calendario do date_input)
       await page.keyboard.press('Escape').catch(() => {});
@@ -107,8 +126,8 @@ async function checarErros(page, onde) {
       // StreamlitWidgetAlreadyInstantiatedError em producao, porque ele
       // reposiciona o date_input. Percorrer as abas sem clicar nele nao pega
       // esse erro: o caminho tem de ser exercitado.
-      if (alvo === 'Alertas') {
-        const ver = page.getByRole('button', { name: /Ver esse dia/ });
+      if (alvo === T.alertas) {
+        const ver = page.getByRole('button', { name: T.verDia });
         if (await ver.count()) {
           await ver.first().click({ force: true }).catch(() => {});
           await calma(page, 2600);
@@ -124,7 +143,7 @@ async function checarErros(page, onde) {
             if (cx) {
               await page.mouse.click(cx.x + cx.width - 4, cx.y + cx.height / 2);
               await calma(page, 2600);
-              const ver2 = page.getByRole('button', { name: /Ver esse dia/ });
+              const ver2 = page.getByRole('button', { name: T.verDia });
               if (await ver2.count()) {
                 await ver2.first().click({ force: true }).catch(() => {});
                 await calma(page, 2600);
@@ -137,17 +156,17 @@ async function checarErros(page, onde) {
 
       // Na fila de PLD, abre o dossie de outro cliente clicando na tabela e
       // registra uma decisao: o caminho que escreve em session_state.
-      if (alvo === 'Clientes em atenção') {
+      if (alvo === T.clientes) {
         const busca = page.getByPlaceholder(/T-01160/);
         if (await busca.count()) {
           await busca.first().fill('T-06857');
           await busca.first().press('Enter');
           await calma(page, 3000);
           await checarErros(page, `${nome} / dossie por busca`);
-          const just = page.getByPlaceholder(/origem comprovada/);
+          const just = page.getByPlaceholder(T.justificativa);
           if (await just.count()) {
             await just.first().fill('Origem comprovada por documento de venda; renda atualizada.');
-            const reg = page.getByRole('button', { name: /Registrar decisão/ });
+            const reg = page.getByRole('button', { name: T.registrar });
             if (await reg.count()) { await reg.first().click({ force: true }); await calma(page, 3000); }
             await checarErros(page, `${nome} / registrar decisao`);
           } else {
@@ -159,7 +178,7 @@ async function checarErros(page, onde) {
           await calma(page, 2000);
         }
       }
-      if (alvo === 'Regras e calibração') {
+      if (alvo === T.regras) {
         const sliders = page.locator('[data-testid="stSlider"]');
         if (await sliders.count()) {
           const bx = await sliders.first().boundingBox();

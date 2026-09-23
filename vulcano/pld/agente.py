@@ -28,10 +28,13 @@ from typing import Any, Optional
 import pandas as pd
 
 from ..dados import Filtros, agregar, periodo_disponivel
+from .. import i18n
 from ..formatacao import numero
+from ..i18n import L, V
 from . import dados as pld_dados
 from . import fila as mod_fila
 from . import parecer as mod_parecer
+from .en import evidencia as ev_local
 from .normas import citar
 from .regras import REGRAS
 
@@ -51,6 +54,13 @@ GATILHOS_FILA = [
     "quem esta na fila", "vencendo", "vence primeiro", "casos abertos",
     "quem se enquadra", "clientes suspeitos", "quem investigar",
     "quem analisar", "mais urgentes", "prazo vencido", "vencidos",
+    # English
+    "need attention", "needs attention", "clients to review",
+    "who should i look at", "where do i start", "where should i start",
+    "queue", "priority", "prioritize", "which clients", "what clients",
+    "who is in the queue", "due first", "expiring", "open cases",
+    "suspicious clients", "who to investigate", "who to review",
+    "most urgent", "overdue cases",
 ]
 
 
@@ -69,7 +79,9 @@ def interpretar(pergunta: str, ctx) -> Optional[dict[str, Any]]:
 
     r = REGRA_ID.search(t)
     fala_de_metrica = any(x in t for x in ("falso positivo", "quantos",
-                                            "quanto", "conversao", "alertas"))
+                                            "quanto", "conversao", "alertas",
+                                            "false positive", "how many",
+                                            "how much", "conversion", "alerts"))
     if r and not fala_de_metrica:
         return {"intencao": "regra", "regra_id": f"R{int(r.group(1)):02d}"}
 
@@ -77,7 +89,8 @@ def interpretar(pergunta: str, ctx) -> Optional[dict[str, Any]]:
     # fila — quem responde é o verbete em conversa.py
     from ..conversa import pergunta_de_conceito
     if pergunta_de_conceito(pergunta) or re.search(
-            r"calculad|como funciona|como e feit|como e montad", t):
+            r"calculad|como funciona|como e feit|como e montad|calculated|"
+            r"how does it work|how is it built", t):
         return None
     if any(g in t for g in GATILHOS_FILA):
         return {"intencao": "fila"}
@@ -92,7 +105,8 @@ def _ref(con, ctx):
 def executar(con, plano: dict[str, Any], ctx):
     dom = ctx.dominio
     fatos: dict[str, Any] = {"dominio": dom.nome, "intencao": plano["intencao"],
-                             "aviso_de_dado": "Domínio com dado SIMULADO."}
+                             "aviso_de_dado": L("Domínio com dado SIMULADO.",
+                                                "SIMULATED data domain.")}
     linhas: list[str] = []
     tabela = None
 
@@ -107,111 +121,167 @@ def executar(con, plano: dict[str, Any], ctx):
             "clientes_vencidos": res.vencidos, "vencem_em_7_dias": res.vencem_7d,
             "prioridade_critica": res.criticos,
             "primeiros": [
-                {"codigo": r.codigo, "tipo": r.tipo_cliente,
+                {"codigo": r.codigo, "tipo": V(r.tipo_cliente),
                  "prioridade": r.prioridade, "regras": r.regras,
-                 "enquadramento_4001": r.enquadramento,
+                 "enquadramento_4001": V(r.enquadramento),
                  "valor": numero(r.valor_envolvido, dom.metrica("valor_envolvido")),
                  "dias_para_o_prazo": r.dias_para_prazo,
                  "ja_comunicado_antes": bool(r.reincidente)}
                 for r in fl.head(5).itertuples()],
         })
+        data_ref = i18n.data(ref)
         if fl.empty:
-            linhas.append(f"A fila está vazia em {ref.strftime('%d/%m/%Y')} "
-                          f"com o filtro {ctx.filtros.resumo(dom)}.")
+            linhas.append(L(f"A fila está vazia em {data_ref} com o filtro "
+                            f"{ctx.filtros.resumo(dom)}.",
+                            f"The queue is empty on {data_ref} with the "
+                            f"filter {ctx.filtros.resumo(dom)}."))
             return fatos, None, None, linhas
 
-        linhas.append(
-            f"Em {ref.strftime('%d/%m/%Y')} há **{res.clientes} clientes** na "
+        linhas.append(L(
+            f"Em {data_ref} há **{res.clientes} clientes** na "
             f"fila, com {res.alertas} alertas abertos — {res.criticos} de "
             f"prioridade crítica"
             + (f", **{res.vencidos} já fora do prazo de 45 dias**"
                if res.vencidos else "")
             + (f" e {res.vencem_7d} vencendo em até 7 dias" if res.vencem_7d
-               else "") + ".")
+               else "") + ".",
+            f"On {data_ref} there are **{res.clientes} clients** in the "
+            f"queue, with {res.alertas} open alerts — {res.criticos} of "
+            f"critical priority"
+            + (f", **{res.vencidos} already past the 45-day deadline**"
+               if res.vencidos else "")
+            + (f" and {res.vencem_7d} due within 7 days" if res.vencem_7d
+               else "") + "."))
         topo = fl.head(3)
-        linhas.append("**Por onde começar:** " + "; ".join(
-            f"**{r.codigo}** ({r.tipo_cliente.split(' ')[0].lower()}, "
-            f"prioridade {r.prioridade:.0f}, {r.regras}, "
-            f"{'vencido' if r.dias_para_prazo < 0 else f'{r.dias_para_prazo} dias de prazo'}"
-            + (", já comunicado antes" if r.reincidente else "") + ")"
+
+        def _prazo(r):
+            if r.dias_para_prazo < 0:
+                return L("vencido", "overdue")
+            return L(f"{r.dias_para_prazo} dias de prazo",
+                     f"{r.dias_para_prazo} days left")
+
+        def _tipo(r):
+            return (V(r.tipo_cliente).split(' (')[0].lower() if i18n.en()
+                    else r.tipo_cliente.split(' ')[0].lower())
+
+        linhas.append(L("**Por onde começar:** ", "**Where to start:** ")
+                      + "; ".join(
+            f"**{r.codigo}** ({_tipo(r)}, "
+            + L(f"prioridade {r.prioridade:.0f}", f"priority {r.prioridade:.0f}")
+            + f", {r.regras}, {_prazo(r)}"
+            + (L(", já comunicado antes", ", previously reported")
+               if r.reincidente else "") + ")"
             for r in topo.itertuples()) + ".")
         vencidos = fl[fl["dias_para_prazo"] < 0]
         if not vencidos.empty:
-            linhas.append(
+            linhas.append(L(
                 f"**O que fazer:** os {len(vencidos)} vencidos vêm antes de "
                 f"qualquer prioridade — já é descumprimento do art. 43, § 1º. "
-                f"Depois, a ordem da tabela.")
+                f"Depois, a ordem da tabela.",
+                f"**What to do:** the {len(vencidos)} overdue ones come before "
+                f"any priority — that is already non-compliance with art. 43, "
+                f"§ 1. After that, the table's order."))
         else:
-            linhas.append(
-                f"**O que fazer:** abra o dossiê de {topo.iloc[0]['codigo']} — é "
+            cod = topo.iloc[0]['codigo']
+            linhas.append(L(
+                f"**O que fazer:** abra o dossiê de {cod} — é "
                 f"só pedir. A prioridade soma gravidade da regra, valor, sinais "
                 f"que se somam e histórico; o prazo anda em coluna separada "
-                f"para o caso médio que vence amanhã não sumir.")
+                f"para o caso médio que vence amanhã não sumir.",
+                f"**What to do:** open {cod}'s case file — just ask. The "
+                f"priority adds up rule severity, amount, signals that stack "
+                f"and history; the deadline runs in a separate column so the "
+                f"medium case due tomorrow doesn't disappear."))
         topo10 = fl.head(10)
         tabela = pd.DataFrame({
-            "Cliente": topo10["codigo"], "Tipo": topo10["tipo_cliente"],
-            "Prioridade": topo10["prioridade"].round(0).astype(int),
-            "Regras": topo10["regras"], "4.001": topo10["enquadramento"],
-            "Valor": [mod_parecer._brl(v) for v in topo10["valor_envolvido"]],
-            "Dias p/ prazo": topo10["dias_para_prazo"]})
+            L("Cliente", "Client"): topo10["codigo"],
+            L("Tipo", "Type"): topo10["tipo_cliente"].map(V),
+            L("Prioridade", "Priority"): topo10["prioridade"].round(0).astype(int),
+            L("Regras", "Rules"): topo10["regras"],
+            "4.001": topo10["enquadramento"],
+            L("Valor", "Amount"): [mod_parecer._brl(v)
+                                   for v in topo10["valor_envolvido"]],
+            L("Dias p/ prazo", "Days to deadline"): topo10["dias_para_prazo"]})
         return fatos, tabela, None, linhas
 
     if plano["intencao"] == "dossie":
         cid = mod_parecer.cliente_por_codigo(con, plano["codigo"])
         if cid is None:
-            fatos["resultado"] = f"cliente {plano['codigo']} não encontrado"
-            linhas.append(
+            fatos["resultado"] = L(f"cliente {plano['codigo']} não encontrado",
+                                   f"client {plano['codigo']} not found")
+            linhas.append(L(
                 f"Não encontrei **{plano['codigo']}** entre os clientes com "
                 f"alerta. Só quem foi selecionado por alguma regra tem dossiê "
-                f"— confira o código na aba Clientes em atenção.")
+                f"— confira o código na aba Clientes em atenção.",
+                f"I couldn't find **{plano['codigo']}** among clients with "
+                f"alerts. Only those selected by some rule have a case file — "
+                f"check the code in the Clients to review tab."))
             return fatos, None, None, linhas
         d = mod_parecer.montar(con, dom, cid, _ref(con, ctx))
         abertos = d.abertos
         fatos.update({
-            "cliente": d.codigo, "cabecalho": d.cabecalho,
-            "posicao_em": d.ref.strftime("%d/%m/%Y"),
+            "cliente": d.codigo,
+            "cabecalho": mod_parecer.rotulos_cabecalho(d.cabecalho),
+            "posicao_em": i18n.data(d.ref),
             "alertas_abertos": [
-                {"data": a.data.strftime("%d/%m/%Y"), "regra": a.regra,
-                 "evidencia": a.evidencia,
+                {"data": i18n.data(a.data), "regra": V(a.regra),
+                 "evidencia": ev_local(a.evidencia),
                  "enquadramento": citar(list(REGRAS[a.regra_id].enquadramento))}
                 for a in abertos.itertuples()],
             "prioridade": d.prioridade,
             "fatores_da_prioridade": [{"fator": f, "pontos": p}
                                       for f, p in d.fatores],
             "dias_para_o_prazo": d.dias_para_prazo,
-            "historico": d.historico["decisao"].value_counts().to_dict(),
+            "historico": {V(k): n for k, n in
+                          d.historico["decisao"].value_counts().items()},
             "leitura": d.leitura,
         })
         if abertos.empty:
-            linhas.append(
-                f"**{d.codigo}** não tem alerta aberto em "
-                f"{d.ref.strftime('%d/%m/%Y')}. Histórico: "
-                + (", ".join(f"{n} {k.lower()}" for k, n in
+            hist = ", ".join(f"{n} {V(k).lower()}" for k, n in
                              d.historico["decisao"].value_counts().items())
-                   or "nenhum") + ".")
+            linhas.append(L(
+                f"**{d.codigo}** não tem alerta aberto em "
+                f"{i18n.data(d.ref)}. Histórico: {hist or 'nenhum'}.",
+                f"**{d.codigo}** has no open alert on {i18n.data(d.ref)}. "
+                f"History: {hist or 'none'}."))
             return fatos, None, None, linhas
-        linhas.append(
-            f"**{d.codigo}** — {d.cabecalho['Tipo']}, "
-            f"{d.cabecalho['Segmento'].lower()}, {d.cabecalho['UF']}, risco "
-            f"{d.cabecalho['Risco cadastral'].lower()}. Prioridade "
-            f"**{d.prioridade:.0f}**, com {len(abertos)} alerta(s) aberto(s) e "
-            + (f"{d.dias_para_prazo} dias até o prazo." if d.dias_para_prazo >= 0
-               else f"**prazo vencido há {-d.dias_para_prazo} dias**."))
+        c = d.cabecalho
+        prazo = (L(f"{d.dias_para_prazo} dias até o prazo.",
+                   f"{d.dias_para_prazo} days to the deadline.")
+                 if d.dias_para_prazo >= 0 else
+                 L(f"**prazo vencido há {-d.dias_para_prazo} dias**.",
+                   f"**deadline passed {-d.dias_para_prazo} days ago**."))
+        linhas.append(L(
+            f"**{d.codigo}** — {c['Tipo']}, "
+            f"{c['Segmento'].lower()}, {c['UF']}, risco "
+            f"{c['Risco cadastral'].lower()}. Prioridade "
+            f"**{d.prioridade:.0f}**, com {len(abertos)} alerta(s) aberto(s) e ",
+            f"**{d.codigo}** — {V(c['Tipo'])}, {V(c['Segmento']).lower()}, "
+            f"{c['UF']}, {V(c['Risco cadastral']).lower()} risk rating. "
+            f"Priority **{d.prioridade:.0f}**, with {len(abertos)} open "
+            f"alert(s) and ") + prazo)
         for a in abertos.itertuples():
-            linhas.append(f"- **{a.regra}** ({a.data.strftime('%d/%m')}): "
-                          f"{a.evidencia}")
+            linhas.append(f"- **{V(a.regra)}** ({i18n.data_curta(a.data)}): "
+                          f"{ev_local(a.evidencia)}")
         linhas += d.leitura
-        linhas.append("O dossiê completo, com contrapartes, verificações e "
-                      "prazos, está na aba **Clientes em atenção**.")
+        linhas.append(L("O dossiê completo, com contrapartes, verificações e "
+                        "prazos, está na aba **Clientes em atenção**.",
+                        "The full case file, with counterparties, checks and "
+                        "deadlines, is in the **Clients to review** tab."))
         tabela = pd.DataFrame({
-            "Seleção": [x.strftime("%d/%m/%Y") for x in abertos["data"]],
-            "Regra": abertos["regra"], "4.001": abertos["situacao_4001"],
-            "Valor": [mod_parecer._brl(v) for v in abertos["valor_envolvido"]]})
+            L("Seleção", "Selected"): [i18n.data(x) for x in abertos["data"]],
+            L("Regra", "Rule"): abertos["regra"].map(V),
+            "4.001": abertos["situacao_4001"].map(V),
+            L("Valor", "Amount"): [mod_parecer._brl(v)
+                                   for v in abertos["valor_envolvido"]]})
         return fatos, tabela, None, linhas
 
     # regra
-    r = REGRAS[plano["regra_id"]]
-    filtros = Filtros({**ctx.filtros.valores, "regra": [r.rotulo]})
+    r_pt = REGRAS[plano["regra_id"]]
+    r = r_pt.local
+    # O filtro compara contra o valor gravado no dado, que é o rótulo em
+    # português -- a tradução é só para o texto.
+    filtros = Filtros({**ctx.filtros.valores, "regra": [r_pt.rotulo]})
     perf = agregar(con, dom, ["alertas", "taxa_falso_positivo",
                               "taxa_comunicacao"], ctx.inicio, ctx.fim,
                    filtros=filtros)
@@ -230,16 +300,27 @@ def executar(con, plano: dict[str, Any], ctx):
         "conversao": numero(float(v["taxa_comunicacao"]), m_co)
         if v is not None and pd.notna(v["taxa_comunicacao"]) else "—",
     })
-    linhas.append(f"**{r.rotulo}** — {r.tipo.lower()}, {r.frequencia.lower()}. "
-                  f"Mede: {r.indicador.lower()}. Dispara a partir de "
-                  f"**{r.parametro.formatar()}**, desde que "
-                  + "; ".join(r.condicoes) + ".")
-    linhas.append(f"Enquadramento: {citar(list(r.enquadramento))}; base na "
-                  f"{citar(list(r.base_3978))}.")
+    linhas.append(L(
+        f"**{r.rotulo}** — {r.tipo.lower()}, {r.frequencia.lower()}. "
+        f"Mede: {r.indicador.lower()}. Dispara a partir de "
+        f"**{r.parametro.formatar()}**, desde que ",
+        f"**{r.rotulo}** — {r.tipo.lower()}, {r.frequencia.lower()}. "
+        f"Measures: {r.indicador[0].lower() + r.indicador[1:]}. Fires from "
+        f"**{r.parametro.formatar()}**, provided that ")
+        + "; ".join(r.condicoes) + ".")
+    linhas.append(L(f"Enquadramento: {citar(list(r.enquadramento))}; base na "
+                    f"{citar(list(r.base_3978))}.",
+                    f"Fits: {citar(list(r.enquadramento))}; grounded in "
+                    f"{citar(list(r.base_3978))}."))
     linhas.append(r.racional)
-    linhas.append(f"No período da tela: {fatos['alertas_no_periodo']} alertas, "
-                  f"falso positivo de {fatos['falso_positivo']} e conversão em "
-                  f"comunicação de {fatos['conversao']} (taxas só de alertas "
-                  f"maduros). A calibração do corte está na aba **Regras e "
-                  f"calibração**.")
+    linhas.append(L(
+        f"No período da tela: {fatos['alertas_no_periodo']} alertas, "
+        f"falso positivo de {fatos['falso_positivo']} e conversão em "
+        f"comunicação de {fatos['conversao']} (taxas só de alertas "
+        f"maduros). A calibração do corte está na aba **Regras e "
+        f"calibração**.",
+        f"In the on-screen period: {fatos['alertas_no_periodo']} alerts, a "
+        f"false positive rate of {fatos['falso_positivo']} and conversion to "
+        f"report of {fatos['conversao']} (rates from mature alerts only). "
+        f"Threshold calibration is in the **Rules & calibration** tab."))
     return fatos, None, None, linhas

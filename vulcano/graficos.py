@@ -27,7 +27,9 @@ from typing import Optional, Sequence
 import pandas as pd
 import plotly.graph_objects as go
 
+from . import i18n
 from .formatacao import numero, pct
+from .i18n import L
 from .semantica import Metrica
 
 # --------------------------------------------------------------------------- #
@@ -114,19 +116,19 @@ def linha_temporal(
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(
-        x=d["data"], y=d[col], name="Diario", mode="lines",
+        x=d["data"], y=d[col], name=L("Diário", "Daily"), mode="lines",
         line=dict(color=SERIE[0], width=1.4),
         customdata=rotulos,
-        hovertemplate="%{x|%d/%m/%Y}<br><b>%{customdata}</b><extra>Diario</extra>",
+        hovertemplate="%{x|" + i18n.formato_data_plotly() + "}<br><b>%{customdata}</b><extra>" + L("Diário", "Daily") + "</extra>",
     ))
     tem_mm = media_movel and media_movel in d.columns and d[media_movel].notna().any()
     if tem_mm:
         fig.add_trace(go.Scatter(
-            x=d["data"], y=d[media_movel], name="Média movel 7 dias", mode="lines",
+            x=d["data"], y=d[media_movel], name=L("Média móvel 7 dias", "7-day moving average"), mode="lines",
             line=dict(color=SERIE[1], width=2),
             customdata=[numero(v, m) for v in d[media_movel]],
-            hovertemplate="%{x|%d/%m/%Y}<br><b>%{customdata}</b>"
-                          "<extra>Média movel</extra>",
+            hovertemplate="%{x|" + i18n.formato_data_plotly() + "}<br><b>%{customdata}</b>"
+                          "<extra>" + L("Média móvel", "Moving average") + "</extra>",
         ))
 
     fig = _base(fig, altura, titulo)
@@ -269,7 +271,7 @@ def perfil_semanal(df: pd.DataFrame, m: Metrica, titulo: str = "",
         text=textos, textposition="outside",
         textfont=dict(size=10, color=TINTA_2, family=FONTE),
         customdata=[numero(v, m) for v in d["valor"]],
-        hovertemplate="<b>%{x}</b><br>%{customdata} (%{text} vs média)<extra></extra>",
+        hovertemplate="<b>%{x}</b><br>%{customdata} (%{text} " + L("vs média", "vs average") + ")<extra></extra>",
     ))
     fig = _base(fig, altura, titulo)
     fig.add_hline(y=0, line=dict(color=EIXO, width=1))
@@ -309,7 +311,7 @@ def duas_janelas(
         ))
     fig = _base(fig, altura, titulo)
     fig.update_layout(hovermode="x unified", showlegend=True)
-    fig.update_xaxes(title=dict(text="Dia dentro do período",
+    fig.update_xaxes(title=dict(text=L("Dia dentro do período", "Day within the period"),
                                 font=dict(size=11, color=TINTA_MUDA)))
     return fig
 
@@ -340,7 +342,7 @@ def linhas_por_segmento(
             x=d["data"], y=d[coluna_valor], name=str(seg), mode="lines",
             line=dict(color=SERIE[i % len(SERIE)], width=1.8),
             customdata=[numero(v, m) for v in d[coluna_valor]],
-            hovertemplate="%{x|%d/%m/%Y}<br><b>%{customdata}</b>"
+            hovertemplate="%{x|" + i18n.formato_data_plotly() + "}<br><b>%{customdata}</b>"
                           f"<extra>{seg}</extra>",
         ))
     fig = _base(fig, altura, titulo)
@@ -369,7 +371,7 @@ def mini_serie(
             line=dict(color=SERIE[0], width=1.6),
             fill="tozeroy", fillcolor="rgba(37,99,235,0.10)",
             customdata=[numero(v, m) for v in d[coluna_valor]],
-            hovertemplate="%{x|%d/%m/%Y}<br><b>%{customdata}</b><extra></extra>",
+            hovertemplate="%{x|" + i18n.formato_data_plotly() + "}<br><b>%{customdata}</b><extra></extra>",
         ))
         ultimo = d.iloc[-1]
         fig.add_trace(go.Scatter(

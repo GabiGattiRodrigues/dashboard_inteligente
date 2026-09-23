@@ -278,6 +278,20 @@ DOMINIO = Dominio(
         "Tem algo fora do padrão no último dia?",
         "Qual a nota média e o que explica ela?",
     ],
+    guia_conversa=(
+        ("onde a jornada trava?", "mostra o funil ponta a ponta e a etapa "
+                                  "que mais perde pedido"),
+        ("quanto tempo o seller leva para postar?",
+         "dá o tempo médio da perna aprovação → postagem"),
+        ("e por quê?", "decompõe a variação contra a base e mostra a cascata"),
+        ("e por rota do envio?", "refaz a leitura separando envio dentro do "
+                                 "estado e entre estados"),
+        ("e a taxa de atraso?", "troca só a métrica e mantém o resto"),
+    ),
+    dica_conversa=("Prazo, atraso e nota só existem para pedido já entregue: "
+                   "os últimos dias do período saem otimistas por construção "
+                   "(censura à direita). Eu aviso quando isso pesa na "
+                   "leitura."),
     notas=[
         "As taxas do funil contam pedidos distintos, não itens: aprovar um "
         "pagamento é uma decisão por pedido, e medir por item faria o pedido "
@@ -299,3 +313,198 @@ DOMINIO = Dominio(
                   "ponta a ponta — compra, aprovação, postagem, entrega — e "
                   "meu trabalho é dizer onde ela trava e há quanto tempo."),
 )
+
+
+# --------------------------------------------------------------------------- #
+# English
+# --------------------------------------------------------------------------- #
+
+EN = {
+    "nome": "Product & Operations",
+    "subtitulo": "Order journey, delivery time and satisfaction",
+    "descricao": (
+        "Where the order journey gets stuck and how long each leg takes: from "
+        "purchase to payment approval, from approval to shipping, from "
+        "shipping to delivery. And whether the promise made at checkout was "
+        "kept."
+    ),
+    "fonte": (
+        "Brazilian E-Commerce Public Dataset by Olist — the same 99k real "
+        "orders, read through the timestamp of each order event."
+    ),
+    "metricas": {
+        "pedidos": ("Orders", "Distinct orders in the period."),
+        "passou_aprovacao": ("Passed approval",
+                             "Orders whose payment was approved, over orders "
+                             "created. First leg of the funnel.",
+                             "Approved orders ÷ Orders created"),
+        "passou_postagem": ("Passed shipping",
+                            "Orders handed to the carrier, over approved "
+                            "orders. Second leg: depends on the seller.",
+                            "Shipped orders ÷ Approved orders"),
+        "passou_entrega": ("Passed delivery",
+                           "Orders delivered to the customer, over shipped "
+                           "orders. Third leg: depends on logistics.",
+                           "Delivered orders ÷ Shipped orders"),
+        "jornada_completa": ("Completed journey",
+                             "Orders that went through the whole journey, from "
+                             "purchase to delivery. The product of the three "
+                             "legs.", "Delivered orders ÷ Orders created"),
+        "h_ate_aprovar": ("Hours to approve",
+                          "Hours between purchase and payment approval.",
+                          "Sum of hours ÷ Approved orders"),
+        "d_aprovar_postar": ("Days to ship",
+                             "Days between approval and hand-off to the "
+                             "carrier.", "Sum of days ÷ Shipped orders"),
+        "d_postar_entregar": ("Days in transit",
+                              "Days between shipping and arrival at the "
+                              "customer.", "Sum of days ÷ Delivered orders"),
+        "prazo_entrega": ("Total delivery time",
+                          "Days between purchase and delivery, end to end.",
+                          "Sum of days ÷ Completed deliveries"),
+        "taxa_atraso": ("Late delivery rate",
+                        "Deliveries that missed the date promised to the "
+                        "customer.", "Late deliveries ÷ Completed deliveries"),
+        "folga_prazo": ("Delivery slack",
+                        "Days ahead of the promised date. Negative means a "
+                        "late delivery.", "Sum of slack ÷ Completed deliveries"),
+        "nota_media": ("Average rating",
+                       "Average of the 1-to-5 reviews received.",
+                       "Sum of ratings ÷ Reviews received"),
+        "pct_nota_baixa": ("1- and 2-star reviews",
+                           "Share of reviews that came in as 1 or 2 stars.",
+                           "1- or 2-star reviews ÷ Reviews received"),
+        "taxa_cancelamento": ("Cancellation rate",
+                              "Canceled or unavailable orders over the total.",
+                              "Canceled orders ÷ Orders"),
+        "itens_por_pedido": ("Items per order", "Average basket size.",
+                             "Items sold ÷ Orders"),
+    },
+    "dimensoes": {
+        "etapa_jornada": ("Journey stage",
+                          "Furthest stage the order reached. Answers who gets "
+                          "stuck, and where."),
+        "categoria": ("Category", "Category of the product purchased."),
+        "regiao": ("Region", "Customer's region on the order."),
+        "estado": ("State", "Customer's state on the order."),
+        "meio_pagamento": ("Payment method",
+                           "Highest-value payment method on the order."),
+        "status": ("Order status", "Order status in the marketplace flow."),
+        "cumpriu_prazo": ("Delivery promise",
+                          "Whether the order arrived within the promised "
+                          "date, late, or has not been delivered yet."),
+        "rota_envio": ("Shipping route",
+                       "Whether the item shipped from a seller in the "
+                       "customer's own state or from another state — the "
+                       "logistics leg that weighs most on delivery time."),
+        "faixa_nota": ("Rating band", "Band of the rating the customer gave."),
+        "dia_semana": ("Day of week", "Day of the week of the purchase."),
+        "tipo_dia": ("Weekday or weekend",
+                     "Whether the purchase fell on a weekday or the weekend."),
+    },
+    "funil": ["Purchased", "Payment approved", "Handed to carrier",
+              "Delivered to customer"],
+    "limites": [
+        "Below 95% completed journeys, some leg is holding too many orders.",
+        "Shipping below 97% points to sellers not dispatching.",
+        "More than 4 days to ship puts the promised date at risk before the "
+        "order even leaves.",
+        "Below 3.9 the rating starts to hurt conversion.",
+        "Above 15 days on average, delivery-time complaints spike.",
+        "Above 10% late deliveries, the SLA agreed with sellers breaks.",
+        "One negative review in every five is the team's threshold.",
+    ],
+    "sinonimos_metrica": {
+        "pedidos": ["order", "orders", "order volume"],
+        "jornada_completa": ["journey", "funnel", "completed journey",
+                             "end to end", "completion", "conversion"],
+        "passou_aprovacao": ["passed approval", "approval rate", "approved",
+                             "payment stage"],
+        "passou_postagem": ["passed shipping", "shipping rate", "shipped",
+                            "dispatch", "dispatched", "seller shipped"],
+        "passou_entrega": ["passed delivery", "delivery rate", "delivered",
+                           "reached the customer"],
+        "h_ate_aprovar": ["approval time", "hours to approve",
+                          "time to approve"],
+        "d_aprovar_postar": ["time to ship", "days to ship", "handling time",
+                             "handling", "seller time", "seller",
+                             "sellers take to ship", "take to ship"],
+        "d_postar_entregar": ["transit", "in transit", "transit time",
+                              "days in transit", "carrier time"],
+        "prazo_entrega": ["delivery time", "total delivery time", "lead time",
+                          "days to deliver", "delivery days"],
+        "taxa_atraso": ["late", "late delivery", "late deliveries",
+                        "late rate", "delay", "delays", "sla", "on time"],
+        "folga_prazo": ["slack", "days early", "ahead of time"],
+        "nota_media": ["rating", "ratings", "review score", "reviews",
+                       "satisfaction", "stars", "average rating", "score"],
+        "pct_nota_baixa": ["low rating", "low ratings", "bad reviews",
+                           "negative reviews", "one star", "two stars",
+                           "1 and 2", "detractors", "complaints",
+                           "unhappy customers"],
+        "taxa_cancelamento": ["cancellation", "cancellations", "canceled",
+                              "cancelled"],
+        "itens_por_pedido": ["items per order", "basket size"],
+    },
+    "sinonimos_dimensao": {
+        "etapa_jornada": ["stage", "stages", "journey stage", "where it stopped",
+                          "where it gets stuck"],
+        "categoria": ["category", "categories", "product category"],
+        "regiao": ["region", "regions"],
+        "estado": ["state", "states"],
+        "meio_pagamento": ["payment", "payment method"],
+        "status": ["status", "order status"],
+        "cumpriu_prazo": ["delivery promise", "on time or late",
+                          "within the deadline", "promise kept"],
+        "rota_envio": ["route", "shipping route", "same state", "interstate",
+                       "shipping origin", "seller location"],
+        "faixa_nota": ["rating band", "bad rating", "good rating"],
+        "dia_semana": ["day of week", "day of the week"],
+        "tipo_dia": ["weekend", "weekday or weekend", "business day"],
+    },
+    "perguntas_exemplo": [
+        "Where does the journey get stuck?",
+        "How long do sellers take to ship?",
+        "Why did the late delivery rate change vs last month?",
+        "Which categories have the worst shipping rate?",
+        "Is delivery time improving?",
+        "Is anything out of pattern on the last day?",
+        "What is the average rating and what explains it?",
+    ],
+    "agente_papel": (
+        "I look after product and operations. I follow the order journey end "
+        "to end — purchase, approval, shipping, delivery — and my job is to "
+        "say where it gets stuck and for how long."
+    ),
+    "guia_conversa": [
+        ("where does the journey get stuck?",
+         "shows the funnel end to end and the stage that loses the most "
+         "orders"),
+        ("how long do sellers take to ship?",
+         "gives the average time of the approval → shipping leg"),
+        ("and why?", "breaks the change down against the baseline and draws "
+                     "the waterfall"),
+        ("and by shipping route?",
+         "redoes the reading splitting same-state from interstate shipping"),
+        ("what about the late delivery rate?",
+         "switches only the metric and keeps the rest"),
+    ],
+    "dica_conversa": (
+        "Delivery time, lateness and rating only exist for delivered orders: "
+        "the last days of the period look optimistic by construction "
+        "(right-censoring). I flag it when that weighs on the reading."
+    ),
+    "notas": [
+        "Funnel rates count distinct orders, not items: approving a payment "
+        "is a per-order decision, and counting items would make a five-item "
+        "order weigh five times.",
+        "Delivery time, lateness and rating only exist for orders already "
+        "delivered and reviewed. Recent orders still in transit are left out "
+        "of these averages, which makes the last days optimistic by "
+        "construction — it is right-censoring, not better operations. Funnel "
+        "rates suffer the same effect: yesterday's order has not had time to "
+        "be delivered.",
+        "Delivery slack is the promised date minus the actual date: a "
+        "negative value is a late delivery.",
+    ],
+}

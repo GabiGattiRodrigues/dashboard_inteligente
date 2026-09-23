@@ -33,6 +33,9 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Literal, Optional
 
+from . import i18n
+from .i18n import L
+
 DIAS_SEMANA = ["segunda-feira", "terça-feira", "quarta-feira", "quinta-feira",
                "sexta-feira", "sábado", "domingo"]
 
@@ -53,13 +56,14 @@ class Janela:
 
     def __str__(self) -> str:
         if self.eh_dia:
-            return self.inicio.strftime("%d/%m/%Y")
-        return f"{self.inicio.strftime('%d/%m/%Y')} a {self.fim.strftime('%d/%m/%Y')}"
+            return i18n.data(self.inicio)
+        return (f"{i18n.data(self.inicio)} {L('a', 'to')} "
+                f"{i18n.data(self.fim)}")
 
     def curto(self) -> str:
         if self.eh_dia:
-            return self.inicio.strftime("%d/%m")
-        return f"{self.inicio.strftime('%d/%m')}–{self.fim.strftime('%d/%m')}"
+            return i18n.data_curta(self.inicio)
+        return f"{i18n.data_curta(self.inicio)}–{i18n.data_curta(self.fim)}"
 
 
 @dataclass(frozen=True)
@@ -83,7 +87,8 @@ class Comparacao:
     def rotulo_base(self) -> str:
         if not self.composta:
             return str(self.anterior)
-        return "média de " + ", ".join(j.curto() for j in self.anteriores)
+        return L("média de ", "average of ") + ", ".join(
+            j.curto() for j in self.anteriores)
 
 
 # --------------------------------------------------------------------------- #
@@ -147,6 +152,23 @@ PRESETS: dict[str, str] = {
     "ultimos_90": "Últimos 90 dias vs 90 anteriores",
 }
 
+PRESETS_EN: dict[str, str] = {
+    "dia_d1": "Day vs previous day (D-1)",
+    "dia_d7": "Day vs same weekday last week (D-7)",
+    "dia_media3": "Day vs average of the last 3 same weekdays",
+    "mtd": "Month-to-date vs previous month-to-date",
+    "semana": "Week-to-date vs previous week-to-date",
+    "mes_fechado": "Full month vs previous month",
+    "ultimos_28": "Last 28 days vs previous 28",
+    "ultimos_90": "Last 90 days vs previous 90",
+}
+
+
+def rotulo_preset(chave: str) -> str:
+    """O nome do preset na língua ativa."""
+    return (PRESETS_EN if i18n.en() else PRESETS).get(chave, chave)
+
+
 # Os quatro níveis que o painel de comparação mostra sempre, lado a lado.
 NIVEIS_COMPARACAO = ["dia_d1", "dia_d7", "mtd", "dia_media3"]
 
@@ -155,42 +177,42 @@ def montar_preset(chave: str, ref: date) -> Comparacao:
     """Traduz um preset da tela em janelas concretas."""
     if chave == "dia_d1":
         return Comparacao(dia(ref), (dia(ref - timedelta(days=1)),),
-                          PRESETS[chave])
+                          rotulo_preset(chave))
 
     if chave == "dia_d7":
         return Comparacao(dia(ref), (dia(ref - timedelta(days=7)),),
-                          PRESETS[chave])
+                          rotulo_preset(chave))
 
     if chave == "dia_media3":
         return Comparacao(dia(ref), mesmos_dias_da_semana(ref, 3),
-                          PRESETS[chave], modo="media")
+                          rotulo_preset(chave), modo="media")
 
     if chave == "mtd":
         a = mes_ate_aqui(ref)
         ini_ant = _mes_anterior(a.inicio)
         fim_ant = min(ini_ant + timedelta(days=a.dias - 1),
                       _ultimo_dia_do_mes(ini_ant))
-        return Comparacao(a, (Janela(ini_ant, fim_ant),), PRESETS[chave])
+        return Comparacao(a, (Janela(ini_ant, fim_ant),), rotulo_preset(chave))
 
     if chave == "semana":
         a = semana_ate_aqui(ref)
         ini_ant = a.inicio - timedelta(days=7)
         return Comparacao(
             a, (Janela(ini_ant, ini_ant + timedelta(days=a.dias - 1)),),
-            PRESETS[chave])
+            rotulo_preset(chave))
 
     if chave == "mes_fechado":
         a = mes_fechado(ref)
         ini_ant = _mes_anterior(a.inicio)
         return Comparacao(a, (Janela(ini_ant, _ultimo_dia_do_mes(ini_ant)),),
-                          PRESETS[chave])
+                          rotulo_preset(chave))
 
     if chave in ("ultimos_28", "ultimos_90"):
         n = int(chave.split("_")[1])
         a = ultimos_dias(ref, n)
         return Comparacao(
             a, (Janela(a.inicio - timedelta(days=n), a.inicio - timedelta(days=1)),),
-            PRESETS[chave])
+            rotulo_preset(chave))
 
     raise KeyError(f"preset desconhecido: {chave}")
 
@@ -212,8 +234,10 @@ def contra_semana(ref: date, semana_alvo: date) -> Comparacao:
     b = Janela(ini_b, ini_b + timedelta(days=a.dias - 1))
     return Comparacao(
         a, (b,),
-        f"Semana acumulada ({a.dias} dia{'s' if a.dias > 1 else ''}) vs mesmo "
-        f"trecho da semana de {ini_b.strftime('%d/%m/%Y')}")
+        L(f"Semana acumulada ({a.dias} dia{'s' if a.dias > 1 else ''}) vs "
+          f"mesmo trecho da semana de {i18n.data(ini_b)}",
+          f"Week-to-date ({a.dias} day{'s' if a.dias > 1 else ''}) vs the "
+          f"same stretch of the week of {i18n.data(ini_b)}"))
 
 
 def contra_mes(ref: date, mes_alvo: date) -> Comparacao:
@@ -223,15 +247,17 @@ def contra_mes(ref: date, mes_alvo: date) -> Comparacao:
     fim_b = min(ini_b + timedelta(days=a.dias - 1), _ultimo_dia_do_mes(ini_b))
     return Comparacao(
         a, (Janela(ini_b, fim_b),),
-        f"Mês acumulado ({a.dias} dia{'s' if a.dias > 1 else ''}) vs mesmo "
-        f"trecho de {ini_b.strftime('%m/%Y')}")
+        L(f"Mês acumulado ({a.dias} dia{'s' if a.dias > 1 else ''}) vs mesmo "
+          f"trecho de {i18n.mes(ini_b)}",
+          f"Month-to-date ({a.dias} day{'s' if a.dias > 1 else ''}) vs the "
+          f"same stretch of {i18n.mes(ini_b)}"))
 
 
 def contra_dia(ref: date, dia_alvo: date) -> Comparacao:
-    rot = "dia anterior" if dia_alvo == ref - timedelta(days=1) else \
-          dia_alvo.strftime("%d/%m/%Y")
-    return Comparacao(dia(ref), (dia(dia_alvo),), f"{ref.strftime('%d/%m/%Y')} vs {rot}")
+    rot = L("dia anterior", "previous day") \
+        if dia_alvo == ref - timedelta(days=1) else i18n.data(dia_alvo)
+    return Comparacao(dia(ref), (dia(dia_alvo),), f"{i18n.data(ref)} vs {rot}")
 
 
 def descrever_dia(d: date) -> str:
-    return f"{d.strftime('%d/%m/%Y')} ({DIAS_SEMANA[d.weekday()]})"
+    return f"{i18n.data(d)} ({i18n.dia_semana(d)})"

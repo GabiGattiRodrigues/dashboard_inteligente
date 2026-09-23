@@ -27,6 +27,11 @@ de alertas, para a pessoa reconhecer quem está falando sem legenda.
 streamlit run app.py
 ```
 
+O painel inteiro fala **português e inglês**: botão PT/EN na capa e na barra
+lateral, e o link `?lang=en` já abre em inglês (útil para mandar para quem
+não lê português). Os agentes entendem pergunta nas duas línguas o tempo
+todo e respondem na língua escolhida — ver *Português e inglês*, mais abaixo.
+
 Há também uma **amostra estática** em `amostra/` — um retrato dos três
 primeiros domínios em uma página só, que abre no celular sem servidor. Os números dela saem dos motores
 de verdade (`scripts/exportar_amostra.py` roda o app e exporta o JSON); só a
@@ -530,6 +535,43 @@ se a base for atualizada, e fica auditável.
 
 ---
 
+## Português e inglês
+
+A tradução não é um tradutor automático colado na saída. Três decisões:
+
+- **O texto em inglês mora ao lado do português**, no mesmo lugar do código:
+  `L("Receita", "Revenue")`. Quem mexe numa frase vê na hora que a outra
+  também precisa mudar. Os catálogos grandes (personalidades e conceitos dos
+  agentes, regras e normas de PLD) têm um arquivo irmão — `conversa_en.py`,
+  `pld/en.py` — pareado pela mesma chave ou posição, e um teste falha se um
+  verbete ficar sem par.
+- **O número não muda de língua, só de roupa.** Métrica, chave, SQL e filtro
+  são os mesmos; muda o separador (1.234,5 → 1,234.5), a data
+  (18/08/2018 → Aug 18, 2018) e o rótulo. O dado continua gravado em
+  português — o filtro compara contra "Cartão de crédito" nas duas línguas
+  e a tradução do valor (`V`) só acontece na hora de mostrar.
+- **O agente entende as duas línguas ao mesmo tempo.** Os sinônimos em inglês
+  de cada métrica e dimensão ficam no dicionário `EN` do arquivo do domínio e
+  se SOMAM aos em português; os gatilhos de intenção (por que, ranking,
+  tendência, alerta, continuação "and why?") também. Com chave de API, o
+  narrador recebe a instrução de responder em inglês sem mexer em número.
+
+Cada agente também tem o seu roteiro de "como conversar" (`guia_conversa` no
+arquivo do domínio): o Bailey ensina a perguntar de originação e over30, a
+Ravena de fila, dossiê e regra, a Tomoyo de turnover, risco de saída e gap —
+em vez de uma tabela única que mandava todo mundo perguntar de receita.
+`tests/test_idioma.py` cobra que esse roteiro cai nas mesmas intenções e
+métricas nas duas línguas, que a resposta em inglês não vaza português, que
+todo valor de dimensão tem tradução e que toda evidência de PLD é reescrita.
+
+Para conversar com um agente sem abrir o Streamlit:
+
+```bash
+python scripts/conversar.py credito en "what was origination?" "and why?"
+```
+
+---
+
 ## Dados
 
 | Domínio | Fonte | Período |
@@ -574,6 +616,7 @@ vulcano/
     fila.py                 prioridade explicável e a fila em qualquer data
     parecer.py              o dossiê e o rascunho de parecer
     agente.py               intenções da Ravena: fila, dossiê, regra
+    en.py                   regras, normas e evidências em inglês
     calendario.py           dias úteis e prazos
     dados.py                tabelas auxiliares do job
   people/                   o que só existe em People Analytics
@@ -585,6 +628,8 @@ vulcano/
   tendencia.py              OLS com t, momento, sequência, sazonalidade
   agente.py                 planejador, validador, executor, narrador
   conversa.py               personalidades, conceitos e o "não entendi"
+  conversa_en.py            as mesmas vozes e conceitos, em inglês
+  i18n.py                   língua ativa, L(pt, en), datas, números, valores
   analise.py                leitura: insights, tendência, recomendações
   graficos.py               Plotly com paleta validada para daltonismo
   estilo.py                 CSS e componentes
@@ -599,6 +644,7 @@ scripts/
   build_amostra.py          injeta o JSON no template e gera a amostra
   recortar_agentes.py       recorta os rostos dos agentes (fundo transparente)
   smoke.js                  percorre o app no navegador e caça exceções
+  conversar.py              conversa com um agente pelo terminal (pt ou en)
   ver_amostra.js            abre a amostra em 390px, nos dois temas
 assets/                     rostos dos agentes, PNG com fundo transparente
 amostra/                    amostra estática de uma página (dados + HTML)
@@ -606,6 +652,7 @@ automacoes/apps_script/     a fila de PLD em Google Sheets, com gatilho e Slack
 tests/test_motor.py         invariantes do motor
 tests/test_pld.py           invariantes de Compliance
 tests/test_people.py        invariantes de People Analytics
+tests/test_idioma.py        a versão em inglês diz o mesmo que a em português
 data/                       parquets gerados
 ```
 

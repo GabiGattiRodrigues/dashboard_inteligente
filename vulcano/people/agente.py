@@ -34,7 +34,9 @@ import pandas as pd
 
 from ..dados import Filtros, agregar, periodo_disponivel
 from ..dominios.people import GRUPO_MINIMO
+from .. import i18n
 from ..formatacao import moeda, numero, pct
+from ..i18n import L, V
 
 INTENCOES = {
     "gap": "gap salarial de gênero bruto vs ajustado por nível e área",
@@ -55,21 +57,41 @@ PESSOA = re.compile(
     r"|(nome|nomes|lista) d[eoa]s? (pessoas|colaboradores|funcionarios)"
     r"|qual (colaborador|funcionario|pessoa)\b"
     r"|pessoa_id|matricula|\bcpf\b"
-    r"|salario d[oa] (fulan|ciclan|beltran|joao|maria|[a-z]+ da ))")
+    r"|salario d[oa] (fulan|ciclan|beltran|joao|maria|[a-z]+ da )"
+    # English
+    r"|who (is going to|will|might|may|is about to|is likely to) "
+    r"(leave|quit|resign)"
+    r"|which (people|employees|person|employee)( specifically)? "
+    r"(will|might|are going to|is going to)"
+    r"|(names?|list) of (the )?(people|employees)"
+    r"|employee id|\bssn\b"
+    r"|(john|jane|mary)'s salary)")
 
 GAP = ["gap", "equidade salarial", "diferenca salarial", "desigualdade salarial",
        "pay gap", "ganham menos", "ganha menos", "mulheres ganham",
-       "diferenca de salario", "salario de mulher", "salario das mulheres"]
+       "diferenca de salario", "salario de mulher", "salario das mulheres",
+       "pay equity", "wage gap", "women earn", "women make less",
+       "earn less", "women's salary", "womens salary"]
 TEMPORAL = ["crescendo", "caindo", "subindo", "tendencia", "variacao", "mudou",
             "mudanca", "contra o mes", "mes passado", "evolucao", "por dia",
-            "serie", "ao longo"]
+            "serie", "ao longo",
+            "growing", "falling", "rising", "trend", "change", "changed",
+            "vs last month", "last month", "over time", "per day",
+            "evolution"]
 RISCO = ["risco de saida", "risco de turnover", "risco de perder",
          "risco de pedido", "onde tem risco", "onde ha risco", "vai sair",
          "vao sair", "podem sair", "pode sair", "sinal de saida",
          "sinais de saida", "sinal antecedente", "sinais antecedentes",
          "indicador antecedente", "antes de sair", "proxima onda",
          "quem esta insatisfeito", "onde esta insatisfeito", "flight risk",
-         "risco de fuga", "vamos perder gente"]
+         "risco de fuga", "vamos perder gente",
+         # English
+         "flight risk", "attrition risk", "risk of leaving", "turnover risk",
+         "risk of losing", "going to leave", "might leave", "may leave",
+         "exit risk", "signs of leaving", "leading indicator",
+         "leading signal", "before they leave", "next wave",
+         "who is unhappy", "where are people unhappy",
+         "are we going to lose people"]
 
 
 def interpretar(pergunta: str, ctx) -> Optional[dict[str, Any]]:
@@ -79,7 +101,9 @@ def interpretar(pergunta: str, ctx) -> Optional[dict[str, Any]]:
 
     from ..conversa import pergunta_de_conceito
     if pergunta_de_conceito(pergunta) or re.search(
-            r"o que e |como funciona|como e calculad|como voce calcula", t):
+            r"o que e |como funciona|como e calculad|como voce calcula|"
+            r"what is (a |an )?(gap|adjusted|raw)|how is .* calculated|"
+            r"how do you calculate", t):
         return None
 
     if any(g in t for g in RISCO):
@@ -237,19 +261,30 @@ def sinais_de_risco(con, dom, ref: date,
 def _motivos(r) -> list[str]:
     m = []
     if r.p_queda_enps >= 5:
-        m.append(f"eNPS caiu {abs(r.delta_enps):.0f} pontos no trimestre "
-                 f"(de {r.enps_ant:+.0f} para {r.enps_tri:+.0f})")
+        m.append(L(f"eNPS caiu {abs(r.delta_enps):.0f} pontos no trimestre "
+                   f"(de {r.enps_ant:+.0f} para {r.enps_tri:+.0f})",
+                   f"eNPS fell {abs(r.delta_enps):.0f} points in the quarter "
+                   f"(from {r.enps_ant:+.0f} to {r.enps_tri:+.0f})"))
     elif r.p_enps_baixo >= 5:
-        m.append(f"eNPS negativo ({r.enps_tri:+.0f})")
+        m.append(L(f"eNPS negativo ({r.enps_tri:+.0f})",
+                   f"negative eNPS ({r.enps_tri:+.0f})"))
     if r.p_turnover >= 5:
-        m.append(f"turnover voluntário do trimestre em {pct(r.vol_tri, 0, False)} "
-                 f"a.a., acima dos {pct(r.vol_12m, 0, False)} dos 12 meses")
+        tri, ano = pct(r.vol_tri, 0, False), pct(r.vol_12m, 0, False)
+        m.append(L(f"turnover voluntário do trimestre em {tri} a.a., acima "
+                   f"dos {ano} dos 12 meses",
+                   f"quarterly voluntary turnover at {tri} annualized, above "
+                   f"the 12-month {ano}"))
     if r.p_promocao:
-        m.append("nenhuma promoção em 12 meses")
+        m.append(L("nenhuma promoção em 12 meses", "no promotions in 12 months"))
     if r.p_ausencia >= 3:
-        m.append(f"absenteísmo subindo ({pct(r.abs_ant, 1, False)} → "
-                 f"{pct(r.abs_tri, 1, False)})")
+        de, para = pct(r.abs_ant, 1, False), pct(r.abs_tri, 1, False)
+        m.append(L(f"absenteísmo subindo ({de} → {para})",
+                   f"absenteeism rising ({de} → {para})"))
     return m
+
+
+def _grupo(area, nivel) -> str:
+    return f"{V(area)} · {V(nivel)}"
 
 
 # --------------------------------------------------------------------------- #
@@ -264,80 +299,117 @@ def _ref(con, ctx) -> date:
 def _executar_risco(con, dom, ctx, fatos, linhas):
     ref = _ref(con, ctx)
     df = sinais_de_risco(con, dom, ref, ctx.filtros)
-    fatos.update({"referencia": ref.strftime("%d/%m/%Y"),
+    fatos.update({"referencia": i18n.data(ref),
                   "filtros_ativos": ctx.filtros.resumo(dom),
                   "grupo_minimo": GRUPO_MINIMO,
                   "pesos_do_score": PESOS_RISCO})
     if df.empty:
-        linhas.append(f"Com o filtro atual não sobra nenhum grupo com pelo "
-                      f"menos {GRUPO_MINIMO} pessoas e respostas de pesquisa "
-                      f"suficientes para ler sinal. Tire um filtro e pergunte "
-                      f"de novo.")
+        linhas.append(L(
+            f"Com o filtro atual não sobra nenhum grupo com pelo "
+            f"menos {GRUPO_MINIMO} pessoas e respostas de pesquisa "
+            f"suficientes para ler sinal. Tire um filtro e pergunte "
+            f"de novo.",
+            f"With the current filter no group is left with at least "
+            f"{GRUPO_MINIMO} people and enough survey responses to read a "
+            f"signal. Remove a filter and ask again."))
         return None
     topo = df[df["risco"] >= 20].head(5)
     fatos["grupos_em_atencao"] = [
-        {"grupo": f"{r.area} · {r.nivel}", "pessoas": int(r.pessoas),
+        {"grupo": _grupo(r.area, r.nivel), "pessoas": int(r.pessoas),
          "risco": int(r.risco), "sinais": _motivos(r)}
         for r in topo.itertuples()]
+    data_ref = i18n.data(ref)
     if topo.empty:
-        linhas.append(
-            f"Em {ref.strftime('%d/%m/%Y')} nenhum grupo acende sinal de "
+        linhas.append(L(
+            f"Em {data_ref} nenhum grupo acende sinal de "
             f"saída: clima estável, turnover no ritmo dos 12 meses e promoção "
-            f"andando. Vale repetir a pergunta no fim do próximo pulso.")
+            f"andando. Vale repetir a pergunta no fim do próximo pulso.",
+            f"On {data_ref} no group lights up an exit signal: stable "
+            f"engagement, turnover at the 12-month pace and promotions "
+            f"moving. Worth asking again after the next pulse survey."))
     else:
-        linhas.append(
+        n = len(topo)
+        linhas.append(L(
             f"Lendo os sinais que vêm **antes** do pedido de demissão, até "
-            f"{ref.strftime('%d/%m/%Y')}, **{len(topo)} "
-            f"{'grupo pede' if len(topo) == 1 else 'grupos pedem'} atenção**:")
+            f"{data_ref}, **{n} "
+            f"{'grupo pede' if n == 1 else 'grupos pedem'} atenção**:",
+            f"Reading the signals that come **before** a resignation, up to "
+            f"{data_ref}, **{n} {'group needs' if n == 1 else 'groups need'} "
+            f"attention**:"))
         for r in topo.itertuples():
-            linhas.append(f"- **{r.area} · {r.nivel}** ({int(r.pessoas)} "
-                          f"pessoas, risco {int(r.risco)}): "
-                          + "; ".join(_motivos(r)) + ".")
+            linhas.append(
+                f"- **{_grupo(r.area, r.nivel)}** ({int(r.pessoas)} "
+                + L(f"pessoas, risco {int(r.risco)}): ",
+                    f"people, risk {int(r.risco)}): ")
+                + "; ".join(_motivos(r)) + ".")
         r0 = topo.iloc[0]
-        acao = ("conversa de permanência com a liderança do grupo e revisão "
-                "de mérito/promoção antes do próximo ciclo"
-                if r0.p_promocao or r0.p_queda_enps >= 15 else
-                "ouvir o grupo (pulso aberto ou grupo focal) antes de mexer em "
-                "política")
-        linhas.append(f"**O que fazer:** começar por {r0.area} · {r0.nivel} — "
-                      f"{acao}. Queda de clima costuma chegar ao turnover em "
-                      f"dois a quatro meses; a janela para agir é agora.")
-    linhas.append(f"*O score é uma soma de sinais nomeados (a conta está na "
-                  f"tabela), por grupo de pelo menos {GRUPO_MINIMO} pessoas. "
-                  f"Não é previsão de quem vai sair — é onde olhar primeiro.*")
+        permanencia = r0.p_promocao or r0.p_queda_enps >= 15
+        acao = (L("conversa de permanência com a liderança do grupo e revisão "
+                  "de mérito/promoção antes do próximo ciclo",
+                  "a stay conversation with the group's leadership and a "
+                  "merit/promotion review before the next cycle")
+                if permanencia else
+                L("ouvir o grupo (pulso aberto ou grupo focal) antes de mexer "
+                  "em política",
+                  "listen to the group (open pulse or focus group) before "
+                  "changing policy"))
+        g0 = _grupo(r0.area, r0.nivel)
+        linhas.append(L(
+            f"**O que fazer:** começar por {g0} — "
+            f"{acao}. Queda de clima costuma chegar ao turnover em "
+            f"dois a quatro meses; a janela para agir é agora.",
+            f"**What to do:** start with {g0} — {acao}. An engagement drop "
+            f"usually reaches turnover in two to four months; the window to "
+            f"act is now."))
+    linhas.append(L(
+        f"*O score é uma soma de sinais nomeados (a conta está na "
+        f"tabela), por grupo de pelo menos {GRUPO_MINIMO} pessoas. "
+        f"Não é previsão de quem vai sair — é onde olhar primeiro.*",
+        f"*The score is a sum of named signals (the math is in the table), "
+        f"per group of at least {GRUPO_MINIMO} people. It's not a "
+        f"prediction of who will leave — it's where to look first.*"))
     t = df.head(8)
     return pd.DataFrame({
-        "Grupo": t["area"] + " · " + t["nivel"],
-        "Pessoas": t["pessoas"].astype(int),
-        "Risco": t["risco"].astype(int),
-        "eNPS (tri)": t["enps_tri"].round(0).astype(int),
+        L("Grupo", "Group"): [_grupo(a, n) for a, n in zip(t["area"], t["nivel"])],
+        L("Pessoas", "People"): t["pessoas"].astype(int),
+        L("Risco", "Risk"): t["risco"].astype(int),
+        L("eNPS (tri)", "eNPS (qtr)"): t["enps_tri"].round(0).astype(int),
         "Δ eNPS": t["delta_enps"].round(0).astype(int),
-        "Vol. tri (a.a.)": [pct(x, 0, False) for x in t["vol_tri"]],
-        "Vol. 12m (a.a.)": [pct(x, 0, False) for x in t["vol_12m"]],
-        "Promoções 12m": t["promocoes_12m"].astype(int),
-        "Pts clima": (t["p_queda_enps"] + t["p_enps_baixo"]).round(0).astype(int),
+        L("Vol. tri (a.a.)", "Vol. qtr (ann.)"): [pct(x, 0, False) for x in t["vol_tri"]],
+        L("Vol. 12m (a.a.)", "Vol. 12m (ann.)"): [pct(x, 0, False) for x in t["vol_12m"]],
+        L("Promoções 12m", "Promotions 12m"): t["promocoes_12m"].astype(int),
+        L("Pts clima", "Pts engagement"): (t["p_queda_enps"] + t["p_enps_baixo"]).round(0).astype(int),
         "Pts turnover": t["p_turnover"].round(0).astype(int),
-        "Pts promoção": t["p_promocao"].round(0).astype(int),
-        "Pts ausência": t["p_ausencia"].round(0).astype(int),
+        L("Pts promoção", "Pts promotion"): t["p_promocao"].round(0).astype(int),
+        L("Pts ausência", "Pts absence"): t["p_ausencia"].round(0).astype(int),
     })
 
 
 def executar(con, plano: dict[str, Any], ctx):
     dom = ctx.dominio
     fatos: dict[str, Any] = {"dominio": dom.nome, "intencao": plano["intencao"],
-                             "aviso_de_dado": "Domínio com dado SIMULADO."}
+                             "aviso_de_dado": L("Domínio com dado SIMULADO.",
+                                                "SIMULATED data domain.")}
     linhas: list[str] = []
 
     if plano["intencao"] == "pessoa":
-        fatos["recusa"] = ("pergunta sobre indivíduo; respondido só por grupo "
-                           f"de pelo menos {GRUPO_MINIMO} pessoas")
-        linhas.append(
+        fatos["recusa"] = L("pergunta sobre indivíduo; respondido só por "
+                            f"grupo de pelo menos {GRUPO_MINIMO} pessoas",
+                            "question about an individual; answered only by "
+                            f"group of at least {GRUPO_MINIMO} people")
+        linhas.append(L(
             "Essa eu não respondo sobre alguém em específico — e não é "
             "limitação técnica, é de propósito. People Analytics que aponta "
             "quem vai sair vira vigilância, e no mês seguinte ninguém responde "
             "a pesquisa de clima com sinceridade. Eu leio grupo, com pelo "
-            f"menos {GRUPO_MINIMO} pessoas.")
-        linhas.append("O que eu posso fazer é mostrar **onde** o risco está:")
+            f"menos {GRUPO_MINIMO} pessoas.",
+            "I don't answer that about anyone specific — and it's not a "
+            "technical limitation, it's on purpose. People Analytics that "
+            "points at who will leave becomes surveillance, and the next "
+            "month nobody answers the engagement survey honestly. I read "
+            f"groups, of at least {GRUPO_MINIMO} people."))
+        linhas.append(L("O que eu posso fazer é mostrar **onde** o risco está:",
+                        "What I can do is show **where** the risk is:"))
         tabela = _executar_risco(con, dom, ctx, fatos, linhas)
         return fatos, tabela, None, linhas
 
@@ -350,8 +422,7 @@ def executar(con, plano: dict[str, Any], ctx):
     bruto, ajust = g["bruto"], g["ajustado"]
     m_gap = dom.metrica("gap_genero")
     fatos.update({
-        "periodo": f"{ctx.inicio.strftime('%d/%m/%Y')} a "
-                   f"{ctx.fim.strftime('%d/%m/%Y')}",
+        "periodo": f"{i18n.data(ctx.inicio)} – {i18n.data(ctx.fim)}",
         "filtros_ativos": ctx.filtros.resumo(dom),
         "gap_bruto": numero(bruto, m_gap),
         "gap_ajustado_nivel_area": numero(ajust, m_gap),
@@ -359,56 +430,82 @@ def executar(con, plano: dict[str, Any], ctx):
         "grupo_minimo": GRUPO_MINIMO,
     })
     if not (ajust == ajust):
-        linhas.append(
+        linhas.append(L(
             f"O gap bruto no período é de **{numero(bruto, m_gap)}**, mas com "
             f"o filtro atual nenhum cargo tem pelo menos {GRUPO_MINIMO} "
             f"mulheres e {GRUPO_MINIMO} homens — sem isso, comparar salário "
             f"médio é comparar o salário de pessoas. Tire um filtro para eu "
-            f"calcular o ajustado.")
+            f"calcular o ajustado.",
+            f"The raw gap in the period is **{numero(bruto, m_gap)}**, but "
+            f"with the current filter no job has at least {GRUPO_MINIMO} "
+            f"women and {GRUPO_MINIMO} men — without that, comparing average "
+            f"salaries means comparing individual people's salaries. Remove a "
+            f"filter so I can calculate the adjusted gap."))
         return fatos, None, None, linhas
 
     parte_mix = (bruto - ajust) / bruto if bruto and bruto > 0 else float("nan")
     fatos["parcela_explicada_por_composicao"] = pct(parte_mix, 0, False)
-    linhas.append(
-        f"O gap **bruto** é de **{numero(bruto, m_gap)}**: é quanto o salário "
+    b_, a_ = numero(bruto, m_gap), numero(ajust, m_gap)
+    linhas.append(L(
+        f"O gap **bruto** é de **{b_}**: é quanto o salário "
         f"médio das mulheres fica abaixo do dos homens, sem ajuste. Comparando "
         f"mulheres e homens **no mesmo nível e na mesma área**, o gap cai para "
-        f"**{numero(ajust, m_gap)}**.")
+        f"**{a_}**.",
+        f"The **raw** gap is **{b_}**: how far women's average salary sits "
+        f"below men's, with no adjustment. Comparing women and men **at the "
+        f"same level and in the same area**, the gap drops to **{a_}**."))
     if parte_mix == parte_mix and parte_mix > 0:
-        linhas.append(
-            f"Ou seja, cerca de **{pct(parte_mix, 0, False)} do gap é de "
+        pm = pct(parte_mix, 0, False)
+        linhas.append(L(
+            f"Ou seja, cerca de **{pm} do gap é de "
             f"composição** — há menos mulheres nos cargos e áreas que pagam "
-            f"mais — e o resto é diferença de salário no mesmo cargo.")
+            f"mais — e o resto é diferença de salário no mesmo cargo.",
+            f"In other words, about **{pm} of the gap is composition** — "
+            f"there are fewer women in the jobs and areas that pay more — and "
+            f"the rest is a pay difference within the same job."))
     rep = g["representacao"]
     if not rep.empty:
-        linhas.append("Representação feminina por nível: " + ", ".join(
-            f"{r.nivel} {pct(r.mulheres, 0, False)}" for r in rep.itertuples())
-            + ".")
+        linhas.append(L("Representação feminina por nível: ",
+                        "Female representation by level: ") + ", ".join(
+            f"{V(r.nivel)} {pct(r.mulheres, 0, False)}"
+            for r in rep.itertuples()) + ".")
     v = g["celulas"]
     v = v[v["valida"]].sort_values("gap", ascending=False)
     if not v.empty:
         r0 = v.iloc[0]
-        linhas.append(
+        linhas.append(L(
             f"O maior gap no mesmo cargo está em **{r0.area} · {r0.nivel}**: "
             f"{pct(r0.gap, 1, False)} ({moeda(r0.salario_f, 0)} contra "
-            f"{moeda(r0.salario_m, 0)}).")
-    linhas.append(
+            f"{moeda(r0.salario_m, 0)}).",
+            f"The largest same-job gap is in **{_grupo(r0.area, r0.nivel)}**: "
+            f"{pct(r0.gap, 1, False)} ({moeda(r0.salario_f, 0)} against "
+            f"{moeda(r0.salario_m, 0)})."))
+    linhas.append(L(
         "**O que fazer:** as duas partes pedem ações diferentes. A de "
         "composição é pipeline — promoção e contratação de mulheres para "
         "Liderança e Tecnologia. A do mesmo cargo é revisão salarial, "
         "começando pelas células com maior gap. Tratar o bruto como se fosse "
-        "tudo equiparação erra o remédio.")
-    linhas.append(f"*Ajuste por nível × área, com peso pela base de cada "
-                  f"cargo. Entram só cargos com pelo menos {GRUPO_MINIMO} "
-                  f"mulheres e {GRUPO_MINIMO} homens "
-                  f"({pct(g['cobertura'], 0, False)} da base).*")
+        "tudo equiparação erra o remédio.",
+        "**What to do:** the two parts call for different actions. The "
+        "composition part is pipeline — promoting and hiring women into "
+        "Leadership and Technology. The same-job part is a pay review, "
+        "starting with the cells with the largest gap. Treating the raw gap "
+        "as if it were all pay equity gets the remedy wrong."))
+    cob = pct(g['cobertura'], 0, False)
+    linhas.append(L(
+        f"*Ajuste por nível × área, com peso pela base de cada "
+        f"cargo. Entram só cargos com pelo menos {GRUPO_MINIMO} "
+        f"mulheres e {GRUPO_MINIMO} homens ({cob} da base).*",
+        f"*Adjusted by level × area, weighted by each job's base. Only jobs "
+        f"with at least {GRUPO_MINIMO} women and {GRUPO_MINIMO} men count "
+        f"({cob} of the base).*"))
     t = v.head(10)
     tabela = pd.DataFrame({
-        "Área": t["area"], "Nível": t["nivel"],
-        "Mulheres": t["pessoas_f"].astype(int),
-        "Homens": t["pessoas_m"].astype(int),
-        "Salário médio F": [moeda(x, 0) for x in t["salario_f"]],
-        "Salário médio M": [moeda(x, 0) for x in t["salario_m"]],
-        "Gap no cargo": [pct(x, 1, False) for x in t["gap"]],
+        L("Área", "Area"): t["area"].map(V), L("Nível", "Level"): t["nivel"].map(V),
+        L("Mulheres", "Women"): t["pessoas_f"].astype(int),
+        L("Homens", "Men"): t["pessoas_m"].astype(int),
+        L("Salário médio F", "Avg salary F"): [moeda(x, 0) for x in t["salario_f"]],
+        L("Salário médio M", "Avg salary M"): [moeda(x, 0) for x in t["salario_m"]],
+        L("Gap no cargo", "Same-job gap"): [pct(x, 1, False) for x in t["gap"]],
     })
     return fatos, tabela, None, linhas
