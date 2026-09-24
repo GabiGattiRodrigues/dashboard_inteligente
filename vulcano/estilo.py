@@ -197,7 +197,6 @@ TIPOS = {".png": "image/png", ".webp": "image/webp", ".jpg": "image/jpeg",
          ".jpeg": "image/jpeg", ".svg": "image/svg+xml"}
 
 
-@functools.lru_cache(maxsize=32)
 def asset_uri(arquivo: str) -> Optional[str]:
     """
     Um arquivo de assets/ como data URI.
@@ -207,12 +206,24 @@ def asset_uri(arquivo: str) -> Optional[str]:
     nao resolve. Em cache porque sao os mesmos arquivos lidos em toda
     reexecucao do script, e o Streamlit reexecuta o script inteiro a cada
     clique.
+
+    Arquivo que falta NAO entra no cache: com o servidor ja rodando, um PNG
+    novo copiado para assets/ tem de aparecer no clique seguinte, e nao so
+    depois de reiniciar o Streamlit. Sem isso, o avatar que faltava na
+    primeira leitura ficava no emoji ate o servidor cair.
     """
     caminho = PASTA_ASSETS / arquivo
     if not caminho.exists():
         return None
-    mime = TIPOS.get(caminho.suffix.lower(), "application/octet-stream")
-    dados = base64.b64encode(caminho.read_bytes()).decode("ascii")
+    return _ler_asset(str(caminho), caminho.stat().st_mtime_ns)
+
+
+@functools.lru_cache(maxsize=64)
+def _ler_asset(caminho: str, _versao: int) -> str:
+    """Le e codifica; a versao (mtime) invalida o cache quando o PNG muda."""
+    c = pathlib.Path(caminho)
+    mime = TIPOS.get(c.suffix.lower(), "application/octet-stream")
+    dados = base64.b64encode(c.read_bytes()).decode("ascii")
     return f"data:{mime};base64,{dados}"
 
 
