@@ -45,6 +45,11 @@ CORTES = [
     # R2: duas fotos separadas.
     ("WhatsApp Image 2026-09-02 at 07.55.23 (1).jpeg", "r2-animada", .515, .310, .405),
     ("WhatsApp Image 2026-09-02 at 07.55.23.jpeg",     "r2-alerta",  .489, .248, .285),
+    # Tomoyo: as duas poses na mesma foto -- atenta a esquerda, sorrindo de
+    # lingua de fora a direita. Os cortes dos outros agentes nao sao refeitos
+    # se a foto de origem nao estiver na pasta (ver main).
+    ("tomoyo.jpg", "tomoyo-alerta",  .258, .215, .240),
+    ("tomoyo.jpg", "tomoyo-animada", .782, .262, .222),
 ]
 
 LADO = 320   # 2x do maior uso na tela (160 px na capa)
@@ -80,6 +85,9 @@ def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     cache: dict[str, Image.Image] = {}
     for arq, nome, fx, fy, fr in CORTES:
+        if not (SRC / arq).exists():
+            print(f"{nome}.png  (pulado: {arq} nao esta em {SRC})")
+            continue
         if arq not in cache:
             cache[arq] = _limpar_franja(_segmentar(SRC / arq))
         im = cache[arq]

@@ -5,8 +5,7 @@ dashboard: ele lê a mesma camada semântica que desenha os gráficos, respeita 
 mesmos filtros e devolve o mesmo número, por construção.
 
 Cinco domínios rodam no mesmo motor — **Marketing e CRM**, **Crédito**,
-**Produto e Operação**, **Compliance e PLD** e **People Analytics** (em
-construção) — cada um com o seu próprio
+**Produto e Operação**, **Compliance e PLD** e **People Analytics** — cada um com o seu próprio
 agente, com nome, rosto, personalidade e vocabulário:
 
 | Agente | Domínio | Como fala |
@@ -15,7 +14,7 @@ agente, com nome, rosto, personalidade e vocabulário:
 | **Bailey** 🐶 | Crédito | mais velho e metódico: primeiro a ressalva, depois o número, depois o que fazer |
 | **R2** 🐕 | Produto e Operação | mais velho e muito inteligente: fala pouco e certo, liga as pontas |
 | **Ravena** 🐕‍🦺 | Compliance e PLD | mais velha, calma e vigilante: sem pressa de concluir — o fato, depois a norma, depois o próximo passo, e nunca decide por ninguém |
-| **Tomoyo** 🐾 | People Analytics | gentil e observadora: repara no que mudou antes de alguém reclamar — e firme num ponto só, fala de grupo, nunca de pessoa |
+| **Tomoyo** 🐾 | People Analytics | jovem, ativa e animada: comemora quando acha o sinal e já quer mostrar o próximo gráfico — e firme num ponto só, fala de grupo, nunca de pessoa |
 
 Quem responde sobre crédito não é quem responde sobre marketing, porque as
 ressalvas e o que conta como resposta boa são outros. A personalidade aparece
@@ -254,7 +253,9 @@ trocar esses dois arquivos: nenhuma linha de código muda.
 
 ---
 
-## People Analytics — a Tomoyo *(em construção)*
+## People Analytics — a Tomoyo
+
+![Prévia do painel com a Tomoyo](assets/preview_tomoyo.gif)
 
 O quinto domínio leva o motor para gente, e a regra muda de novo — só que ao
 contrário da Ravena: aqui o agente **nunca** desce ao indivíduo. People
@@ -302,8 +303,9 @@ zero não vira z = 99 — a escala mínima passa a ser o desvio de Poisson) e o
 reconhecimento de "qual canal **tem mais** X?" como ranking. E uma correção:
 "contra" era casado por substring, e "contrata**ção**" virava comparação.
 
-**Falta:** o rosto da Tomoyo (`assets/tomoyo-animada.png` e
-`tomoyo-alerta.png`; até lá ela usa 🐾) e o ajuste fino de textos e gráficos.
+**Pronto (set/2026):** rosto da Tomoyo (`assets/tomoyo-animada.png` e
+`tomoyo-alerta.png`, recortados por `scripts/recortar_agentes.py`), voz jovem
+e animada em PT e EN, e o domínio saiu de `EM_CONSTRUCAO`.
 
 ---
 

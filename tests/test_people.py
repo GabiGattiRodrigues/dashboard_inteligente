@@ -187,12 +187,23 @@ def test_nenhum_grupo_pequeno_aparece():
 def test_pergunta_sobre_pessoa_e_recusada():
     for q in ["quem vai pedir demissão?", "qual colaborador está insatisfeito?",
               "me passa a lista de pessoas que vão sair",
-              "qual o salário do fulano?"]:
+              "qual o salário do fulano?", "a Mariana vai pedir demissão?",
+              "o Pedro pode sair?"]:
         r = perguntar(CON, q, _ctx(), usar_llm=False)
         assert r.plano["intencao"] == "pessoa", q
         assert "grupo" in r.texto
         assert "pessoa_id" not in (r.tabela.columns if r.tabela is not None
                                    else [])
+
+
+def test_coletivo_com_artigo_nao_vira_pergunta_de_pessoa():
+    from vulcano.people.agente import PESSOA, _norm
+    for q in ["a área de lojas vai sair do controle?", "o time vai sair?",
+              "a galera pode sair?", "will anyone leave?",
+              "is turnover going to rise?"]:
+        assert not PESSOA.search(_norm(q)), q
+    for q in ["will Mariana leave?", "is Pedro going to quit?"]:
+        assert PESSOA.search(_norm(q)), q
 
 
 def test_cada_pergunta_vai_para_a_rota_certa():

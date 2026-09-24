@@ -272,10 +272,11 @@ DOMINIO = Dominio(
     agente_genero="f",
     agente_voz="tomoyo",
     agente_imagem="tomoyo",
-    agente_papel=("Cuido de gente: quem entra, quem sai, como está o clima e "
-                  "se a régua de salário é justa. Leio sempre grupo, nunca "
-                  "pessoa — e procuro o sinal que avisa antes da saída, "
-                  "porque depois do pedido de demissão já é tarde."),
+    agente_papel=("Cuido de gente — e adoro isso! Quem entra, quem sai, como "
+                  "está o clima e se a régua de salário é justa. Leio sempre "
+                  "grupo, nunca pessoa, e saio farejando o sinal que avisa "
+                  "antes da saída, porque depois do pedido de demissão já é "
+                  "tarde."),
     extensao="vulcano.people.agente",
     guia_conversa=(
         ("qual o turnover voluntário?", "dá a taxa anualizada do período "
@@ -481,10 +482,11 @@ EN = {
         "Is absenteeism growing?",
     ],
     "agente_papel": (
-        "I look after people: who joins, who leaves, how engagement is doing "
-        "and whether the pay scale is fair. I always read groups, never "
-        "individuals — and I look for the signal that warns before an exit, "
-        "because after the resignation letter it is too late."
+        "I look after people — and I love it! Who joins, who leaves, how "
+        "engagement is doing and whether the pay scale is fair. I always read "
+        "groups, never individuals, and I go sniffing out the signal that "
+        "warns before an exit, because after the resignation letter it is "
+        "too late."
     ),
     "guia_conversa": [
         ("what's the voluntary turnover?",

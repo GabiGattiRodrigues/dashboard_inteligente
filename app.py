@@ -59,8 +59,8 @@ def marca() -> str:
 # Domínios ainda em ajuste. Ficam publicados e navegáveis, com selo na capa e
 # aviso no topo do painel: esconder até "ficar pronto" é o que faz um projeto
 # de portfólio nunca sair do lugar. Tirar daqui é o passo único para dizer que
-# terminou -- foi o que aconteceu com PLD em set/2026.
-EM_CONSTRUCAO: set[str] = {"people"}
+# terminou -- foi o que aconteceu com PLD e com People em set/2026.
+EM_CONSTRUCAO: set[str] = set()
 
 st.set_page_config(page_title=f"{MARCA} · {MARCA_EN}", page_icon="📊",
                    layout="wide")

@@ -58,6 +58,12 @@ PESSOA = re.compile(
     r"|qual (colaborador|funcionario|pessoa)\b"
     r"|pessoa_id|matricula|\bcpf\b"
     r"|salario d[oa] (fulan|ciclan|beltran|joao|maria|[a-z]+ da )"
+    # "a Mariana vai pedir demissao?" -- artigo + nome proprio + saida. A lista
+    # negativa segura os coletivos ("a area vai sair", "o time vai sair"), que
+    # sao pergunta de grupo e seguem para a leitura de risco.
+    r"|\b(o|a) (?!(area|empresa|time|equipe|galera|gente|turma|lideranca|"
+    r"diretoria|gestao|pessoal|setor|loja|nivel|grupo|safra)\b)[a-z]+ "
+    r"(vai|pode|deve|esta para|ta pra|tende a) (sair|pedir|se demitir)"
     # English
     r"|who (is going to|will|might|may|is about to|is likely to) "
     r"(leave|quit|resign)"
@@ -65,7 +71,10 @@ PESSOA = re.compile(
     r"(will|might|are going to|is going to)"
     r"|(names?|list) of (the )?(people|employees)"
     r"|employee id|\bssn\b"
-    r"|(john|jane|mary)'s salary)")
+    r"|(john|jane|mary)'s salary"
+    r"|\b(will|is|does) (?!(anyone|someone|anybody|somebody|the|it|this|"
+    r"that|there|turnover|attrition|our|my|team|people|staff)\b)[a-z]+ "
+    r"(leave|quit|resign|going to (leave|quit|resign)|want to (leave|quit)))")
 
 GAP = ["gap", "equidade salarial", "diferenca salarial", "desigualdade salarial",
        "pay gap", "ganham menos", "ganha menos", "mulheres ganham",
@@ -398,12 +407,12 @@ def executar(con, plano: dict[str, Any], ctx):
                             "question about an individual; answered only by "
                             f"group of at least {GRUPO_MINIMO} people")
         linhas.append(L(
-            "Essa eu não respondo sobre alguém em específico — e não é "
+            "Ah, essa eu não respondo sobre alguém em específico — e não é "
             "limitação técnica, é de propósito. People Analytics que aponta "
             "quem vai sair vira vigilância, e no mês seguinte ninguém responde "
             "a pesquisa de clima com sinceridade. Eu leio grupo, com pelo "
             f"menos {GRUPO_MINIMO} pessoas.",
-            "I don't answer that about anyone specific — and it's not a "
+            "Ah, I don't answer that about anyone specific — and it's not a "
             "technical limitation, it's on purpose. People Analytics that "
             "points at who will leave becomes surveillance, and the next "
             "month nobody answers the engagement survey honestly. I read "
