@@ -79,6 +79,13 @@ def decompor(
     top_n: int = 10,
 ) -> Decomposicao:
     m = dom.metrica(chave_metrica)
+    # Rede de segurança: a tela e o agente já só oferecem dimensões em que a
+    # métrica existe. Se mesmo assim chegar uma inválida (investimento por
+    # meio de pagamento), decompõe pela dimensão padrão da métrica e diz.
+    trocada = None
+    if not dom.dim_vale(chave_metrica, chave_dimensao):
+        trocada = dom.dimensao(chave_dimensao).rotulo.lower()
+        chave_dimensao = dom.dim_padrao(chave_metrica)
     d = dom.dimensao(chave_dimensao)
     col = d.coluna
 
@@ -177,6 +184,16 @@ def decompor(
             + (f", or an additive metric such as {', '.join(alt_mets)}."
                if alt_mets else ".")
         ))
+
+    if trocada:
+        aviso = L(
+            f"**{m.rotulo}** não existe por {trocada} — esse número nasce "
+            f"antes do pedido, e não carrega essa informação. Decompus por "
+            f"**{d.rotulo.lower()}**.",
+            f"**{m.rotulo}** does not exist by {trocada} — this number is "
+            f"born before the order and doesn't carry that information. I "
+            f"broke it down by **{d.rotulo.lower()}** instead.") + (
+            " " + aviso if aviso else "")
 
     df["contrib_abs"] = df["contribuicao"].abs()
     df = df.sort_values("contrib_abs", ascending=False).reset_index(drop=True)

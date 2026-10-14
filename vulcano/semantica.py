@@ -70,6 +70,15 @@ class Metrica:
     # alerta usa como escala minima o desvio de Poisson, raiz(max(mediana, 1)):
     # sair de 0 para 1 deixa de ser anomalia, sair de 3 para 60 continua sendo.
     contagem_esparsa: bool = False
+    # Dimensões em que a métrica EXISTE. None = todas.
+    #
+    # Num fato que mistura dois tipos de linha -- pedido e campanha, em
+    # Marketing --, investimento não tem meio de pagamento nem faixa de preço:
+    # o dinheiro de mídia é gasto antes de existir pedido. Quebrar ROAS por
+    # meio de pagamento devolveria um número com cara de resposta e sem
+    # significado nenhum. Com a lista declarada, o motor recusa a quebra (e o
+    # agente explica por quê) em vez de inventar.
+    dims: Optional[tuple[str, ...]] = None
 
     @property
     def eh_razao(self) -> bool:
@@ -155,6 +164,13 @@ class Dominio:
     # numa métrica agregada.
     extensao: str = ""
 
+    # Carregar o fato inteiro na memória em vez de ler o parquet a cada
+    # consulta. Vale para fato pequeno com métrica cara: em Marketing, as
+    # contagens distintas condicionais de campanha (ROAS, CAC, lift) relidas
+    # do disco a cada gráfico deixavam a aba de alertas lenta. People fica de
+    # fora de propósito -- quase 3 milhões de linhas não cabem com folga.
+    em_memoria: bool = False
+
     # Como conversar com o agente DESTE domínio: exemplos de uma conversa de
     # verdade, com continuação, no vocabulário do domínio. Cada linha é
     # (o que você pergunta, o que o agente faz). Existe porque um roteiro
@@ -204,6 +220,38 @@ class Dominio:
             raise KeyError(f"dimensão desconhecida em {self.chave}: {chave}")
         return self.dimensoes[chave]
 
+    def dim_vale(self, chave_metrica: str, chave_dimensao: str) -> bool:
+        """A métrica existe quando quebrada por esta dimensão?"""
+        m = self.metricas.get(chave_metrica)
+        return m is None or m.dims is None or chave_dimensao in m.dims
+
+    def dims_da_metrica(self, chave_metrica: str,
+                        candidatas: Optional[list[str]] = None) -> list[str]:
+        """As dimensões (na ordem dada, ou na da barra lateral) em que a
+        métrica existe."""
+        base = list(candidatas) if candidatas is not None else (
+            self.dims_filtro + [k for k in self.dimensoes
+                                if k not in self.dims_filtro])
+        return [d for d in base if self.dim_vale(chave_metrica, d)]
+
+    def dim_padrao(self, chave_metrica: Optional[str]) -> str:
+        """Primeira dimensão da barra lateral em que a métrica existe. É o
+        padrão de "por que caiu?" quando a pessoa não diz por onde."""
+        if chave_metrica:
+            validas = self.dims_da_metrica(chave_metrica)
+            if validas:
+                return validas[0]
+        return self.dims_filtro[0]
+
+    def filtros_que_nao_valem(self, chave_metrica: str, filtros) -> list[str]:
+        """Dimensões filtradas na barra lateral em que a métrica não existe:
+        com elas ativas a métrica fica vazia, e isso precisa ser dito."""
+        if not filtros:
+            return []
+        return [k for k, v in getattr(filtros, "valores", {}).items()
+                if v and k in self.dimensoes
+                and not self.dim_vale(chave_metrica, k)]
+
     def decomposicao_fecha(self, chave_metrica: str, chave_dimensao: str) -> bool:
         """
         Diz se a soma dos segmentos reconstrói o total.
@@ -222,6 +270,8 @@ class Dominio:
         mudou a regra.
         """
         m, d = self.metrica(chave_metrica), self.dimensao(chave_dimensao)
+        if not self.dim_vale(chave_metrica, chave_dimensao):
+            return False
         if m.num_aditivo:
             return True
         return bool(m.entidade and m.entidade in d.unica_por)

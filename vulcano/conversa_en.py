@@ -184,6 +184,45 @@ VOZES_EN: dict[str, dict] = {
                   "answer loosely — a wrong number about people becomes an "
                   "unfair decision."),
     ),
+    "vulcao": dict(
+        tom=("A brown-furred dog in a plaid bandana, energetic and very "
+             "smart — the crew's engine. Arrives fired up, thinks fast and "
+             "talks at operations pace: what came due, who to chase, what to "
+             "do today. The energy comes with brains: he connects the dots "
+             "(seller, route, carrier, promise) before pointing fingers, "
+             "separates noise from signal with the control chart and never "
+             "calls a crisis what's within the limit. Excited about the "
+             "finding, precise with the number, always with the next step."),
+        saudacao=(
+            "Hey, let's go! I already ran the {dominio} queue and set aside "
+            "what came due today — there's stuff to unstick.",
+            "Hi! {dominio} is open, for the period in the sidebar. Should I "
+            "start with the queue, this week's control or who's running "
+            "late?",
+            "Hey! Engine's on: queue, rule and control by origin are ready. "
+            "Fire away!",
+        ),
+        agradecimento=("Anytime! Now let's get those orders moving.",
+                       "You're welcome — orders moving is what makes me "
+                       "happy.",
+                       "Got your back! Any week out of control, I'll let "
+                       "you know."),
+        despedida=("See you! Tomorrow morning the D+3 queue will be sorted.",
+                   "Bye! If any region goes out of control, I'll shout.",
+                   "Later — and no orders slipping past D+7!"),
+        como_esta=("Full speed! The network is in control for now. And you?",
+                   "Great — today's route is already mapped. And you?"),
+        elogio=("Nice! On to the next one?",
+                "Thanks! Want me to open it by origin, by region or by who "
+                "was late?"),
+        convite=("Ask however it comes: which orders are stuck, how the week "
+                 "went and which region drove it, whether the D+3/D+7 rule "
+                 "makes sense, whether the delay is the seller's or the "
+                 "carrier's, or an order by its code (the first 8 "
+                 "characters are enough)."),
+        admissao=("Didn't catch that one! And I'd rather say so than guess — "
+                  "a wrong number here means chasing the wrong carrier."),
+    ),
 }
 
 VOZ_PADRAO_EN = dict(
@@ -332,7 +371,10 @@ CONCEITOS_EN: list[tuple[list[str], list[str], str, str]] = [
      "It depends on the domain, and the **About the data** tab tells the "
      "details. Marketing and Product run on Olist's Brazilian E-Commerce "
      "Public Dataset — real public data, 99k orders from a Brazilian "
-     "marketplace. Credit runs on a **simulated** portfolio, generated with "
+     "marketplace. In Marketing, the campaign layer (channel, investment, CRM "
+     "sends and control group) is **simulated** on top of those real orders, "
+     "because Olist doesn't publish where each sale came from. "
+     "Credit runs on a **simulated** portfolio, generated with "
      "a declared structure (approval curve by score, delinquency "
      "maturation, a policy shock, right-censoring), because there is no "
      "public credit dataset with origination date and delinquency flags. "
@@ -615,4 +657,96 @@ CONCEITOS_EN: list[tuple[list[str], list[str], str, str]] = [
      "average salary\" is someone's salary. People data is also personal "
      "data under Brazil's LGPD, and anything about health (sick notes) is "
      "sensitive — one more reason never to go down to the individual."),
+
+    (["attribution", "attributed", "last click", "last-click",
+      "attribution model", "where did the order come from"], [],
+     "Last-click attribution",
+     "Each order goes **entirely** to the last campaign the person touched "
+     "before buying. It's the most common model and the easiest to audit — "
+     "and it has a known bias: it overstates the bottom of the funnel. Brand "
+     "search and abandoned cart look like heroes because they catch people "
+     "who were already going to buy; prospecting media, which brought the "
+     "person in weeks earlier, gets no credit.\n\n"
+     "That's why ROAS is read together with CAC (which only looks at new "
+     "customers) and CRM is read by its **lift over the control group**, "
+     "which doesn't depend on attribution at all: it compares those who "
+     "received with those who didn't."),
+
+    (["control group", "why a control group", "holdout", "incrementality",
+      "what is lift", "what's lift", "caused the sale", "incremental sale",
+      "holdout test"], [],
+     "Control group and lift",
+     "Every CRM send holds out **10% of the audience, at random**, who get "
+     "nothing. Measurement looks at **7 days after the send**: of those who "
+     "received, who opened (was reached) and who bought. The openers' "
+     "response is compared with the control's, along with both average "
+     "tickets.\n\n"
+     "The catch is that people who open emails already buy more — so "
+     "\"openers × control\" mixes the send's effect with the profile of who "
+     "opens, and overstates the lift. That's why I show the **real lift** "
+     "next to it: everyone who received against the control, two groups "
+     "drawn at random from the same audience. Dividing that gain by the "
+     "open rate gives the effect on openers. And with few purchases in the "
+     "control, lift swings a lot: read it with volume and the interval "
+     "before cutting a flow."),
+
+    # ---------------- Logistics -----------------------------------------------
+    (["control chart", "p-chart", "p chart", "pchart", "control limit",
+      "out of control", "statistical process control", "special cause",
+      "common cause"], ["out of control", "control limit"],
+     "Control chart (p-chart)",
+     "It's how to tell **noise from real change** in a rate. For each "
+     "origin I take each week's late rate and draw the average (p̄) and two "
+     "limits: `p̄ ± 3·√(p̄(1−p̄)/n)`, with THAT week's n. A week with few "
+     "orders gets a wider limit — that's what keeps a small origin from "
+     "firing an alert every month by chance.\n\n"
+     "Two signals count: a point **above the limit** (the week was "
+     "abnormal) and **eight weeks in a row** on the same side of the "
+     "average (the level shifted, even with nothing breaking out). Within "
+     "the limit, don't touch it: reacting to noise is the fastest way to "
+     "make an operation worse. And when several origins break out in the "
+     "same week, the cause is network-wide (peak, strike), not one "
+     "origin's."),
+
+    (["point of no return", "d+3/d+7", "d3/d7", "why d+3", "why d+7",
+      "where does d+3 come from", "where does d+7 come from",
+      "escalation rule"], ["rule"],
+     "The D+3/D+7 rule and the point of no return",
+     "For each day after the promise, I look at the orders that **still "
+     "haven't arrived** and measure how many of them end up arriving. While "
+     "the odds are high, the right move is **chase and wait** (D+3: the "
+     "carrier, or the seller if it wasn't even shipped). When they drop, "
+     "waiting only makes things worse and it's time to **contact the "
+     "customer** (D+7: resend or refund, the customer chooses).\n\n"
+     "The marks aren't dogma: they come from the curve. In the original "
+     "case, only one in four still arrived at D+7. In the Olist data the "
+     "curve drops more slowly — more than half still arrive at D+7 —, so "
+     "here D+7 is for telling the customer, and the automatic resend waits "
+     "until the odds drop below 50%."),
+
+    (["wilson interval", "wilson", "95% ci", "ci95", "margin of error",
+      "confidence interval"], ["margin of error", "confidence interval"],
+     "Wilson interval",
+     "It's the **margin of error** of a percentage, like in an election "
+     "poll. If 300 of 500 pending orders arrived later, the interval says "
+     "between what and what the true rate should be.\n\n"
+     "I use Wilson's, not the textbook one (p ± 1.96·error), because this "
+     "rule lives in the corners where the textbook one fails: proportions "
+     "near 0% or 100% and origins with few pending orders. There the usual "
+     "interval can even go past 100%; Wilson's stays within 0–100% and "
+     "reads the same. When the D+3 and D+7 ranges don't overlap, the drop "
+     "between them is real."),
+
+    (["stuck order", "what counts as stuck", "what is a stuck order",
+      "forgotten order", "forgotten orders"], ["forgotten"],
+     "Stuck order",
+     "A stuck order is one **past its promised date and not delivered** on "
+     "the date you're looking at. The queue is built as it stood that day: "
+     "an order that arrived later shows up as stuck, because that day it "
+     "was.\n\n"
+     "I split it into rule bands — overdue 1–2 days (monitor), D+3 to D+6 "
+     "(chase), D+7 to D+30 (contact the customer) — and a fourth, the "
+     "**forgotten** ones, overdue for more than 30 days. The rule can't "
+     "save those anymore: it's time to decide write-off and refund. Each "
+     "forgotten order is a D+7 nobody did."),
 ]

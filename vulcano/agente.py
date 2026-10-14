@@ -155,6 +155,17 @@ def _casar(texto: str, sinonimos: dict[str, list[str]]) -> Optional[str]:
     return melhor
 
 
+def _termo_casado(texto: str, sinonimos: dict[str, list[str]],
+                  chave: Optional[str]) -> str:
+    """O sinônimo de `chave` que casou no texto (o mais longo)."""
+    if not chave:
+        return ""
+    t = _normalizar(texto)
+    achados = [_normalizar(x) for x in sinonimos.get(chave, [])
+               if re.search(rf"\b{re.escape(_normalizar(x))}\b", t)]
+    return max(achados, key=len) if achados else ""
+
+
 def _contem(texto_normalizado: str, termos: list[str]) -> bool:
     """Testa termos contra texto ja normalizado, normalizando cada termo.
 
@@ -275,6 +286,16 @@ def interpretar_deterministico(pergunta: str, ctx: Contexto) -> dict[str, Any]:
 
     metrica_dita = _casar(pergunta, _sinonimos_metrica(dom))
     dimensao_dita = _casar(pergunta, _sinonimos_dimensao(dom))
+
+    # A palavra que nomeou a métrica não pode nomear também a dimensão: em
+    # "quantos novos clientes?", "novos" é parte de "novos clientes", e não
+    # um pedido de quebra por novo/recorrente; em "conversão da mídia", "mídia"
+    # não é a dimensão canal.
+    if metrica_dita and dimensao_dita:
+        tm = _termo_casado(pergunta, _sinonimos_metrica(dom), metrica_dita)
+        td = _termo_casado(pergunta, _sinonimos_dimensao(dom), dimensao_dita)
+        if td and tm and td in tm:
+            dimensao_dita = None
 
     # Numa continuacao, o que a pessoa NAO repetiu ela quer manter.
     metrica = metrica_dita or (anterior.get("metrica") if continua
@@ -412,7 +433,7 @@ def interpretar_deterministico(pergunta: str, ctx: Contexto) -> dict[str, Any]:
                                 "explains", "what drove", "driver", "drivers",
                                 "root cause", "behind", "how come"]):
         plano["intencao"] = "causa_raiz"
-        plano["dimensao"] = plano["dimensao"] or dom.dims_filtro[0]
+        plano["dimensao"] = plano["dimensao"] or dom.dim_padrao(plano["metrica"])
         return plano
 
     if _contem(t, ["tendencia", "esta subindo", "esta caindo", "crescendo",
@@ -440,7 +461,7 @@ def interpretar_deterministico(pergunta: str, ctx: Contexto) -> dict[str, Any]:
                  r"quais as|quais os|largest|biggest|highest|lowest|smallest|"
                  r"best|worst|rank|leading|which are the)\b", t):
         plano["intencao"] = "ranking"
-        plano["dimensao"] = plano["dimensao"] or dom.dims_filtro[0]
+        plano["dimensao"] = plano["dimensao"] or dom.dim_padrao(plano["metrica"])
         plano["crescente"] = _ordem_crescente(t, dom, plano["metrica"])
         m = (re.search(r"\btop\s*(\d{1,2})\b", t)
              or re.search(r"\b(\d{1,2})\s+(maiores|largest|biggest|highest)", t))
@@ -488,6 +509,7 @@ def _catalogo_para_prompt(dom: Dominio) -> str:
     ms = "\n".join(
         f"  - {k}: {v.rotulo}. {v.descricao}"
         + ("" if v.bom_quando_sobe else " (subir e RUIM nesta métrica)")
+        + (f" (só existe por: {', '.join(v.dims)})" if v.dims else "")
         for k, v in dom.metricas.items()
     )
     ds = "\n".join(
@@ -741,8 +763,36 @@ def validar(plano: dict[str, Any], ctx: Contexto) -> tuple[dict[str, Any], list[
     p["crescente"] = bool(p.get("crescente"))
     p["tom"] = p.get("tom") or "saudacao"
 
+    # Métrica que não existe na dimensão pedida (investimento por meio de
+    # pagamento): troca pela dimensão padrão dela e diz por quê, em vez de
+    # devolver uma tabela vazia ou um número sem significado.
+    mk = p["metrica"]
+    if p.get("dimensao") and not dom.dim_vale(mk, p["dimensao"]):
+        pedida = dom.dimensao(p["dimensao"]).rotulo.lower()
+        p["dimensao"] = dom.dim_padrao(mk)
+        avisos.append(L(
+            f"{dom.metrica(mk).rotulo} não existe por {pedida} — a linha de "
+            f"investimento e de disparo nasce antes do pedido e não carrega "
+            f"essa informação; usei {dom.dimensao(p['dimensao']).rotulo.lower()}",
+            f"{dom.metrica(mk).rotulo} does not exist by {pedida} — "
+            f"investment and send rows are born before the order and don't "
+            f"carry that information; used "
+            f"{dom.dimensao(p['dimensao']).rotulo.lower()}"))
+
     if p["intencao"] in ("causa_raiz", "ranking") and not p.get("dimensao"):
-        p["dimensao"] = dom.dims_filtro[0]
+        p["dimensao"] = dom.dim_padrao(mk)
+
+    sem_valor = dom.filtros_que_nao_valem(mk, ctx.filtros) if p["intencao"] in (
+        "total", "ranking", "comparacao", "causa_raiz", "tendencia") else []
+    if sem_valor:
+        rots = ", ".join(dom.dimensao(k).rotulo.lower() for k in sem_valor)
+        avisos.append(L(
+            f"com filtro de {rots} ativo, {dom.metrica(mk).rotulo} fica vazio "
+            f"de propósito — essa métrica não existe nessa dimensão. Tire o "
+            f"filtro para ver o número",
+            f"with a {rots} filter on, {dom.metrica(mk).rotulo} is left empty "
+            f"on purpose — this metric doesn't exist on that dimension. "
+            f"Remove the filter to see the number"))
 
     return p, avisos
 
@@ -1226,6 +1276,21 @@ def perguntar(
                               + leitura.recomendacoes[0])
         except Exception:
             pass    # leitura e um extra; nunca deve derrubar a resposta
+
+        # Lift sem o volume do controle é meia resposta: com dez compras no
+        # grupo controle, +40% e -20% cabem no mesmo ruído.
+        if plano["metrica"] in ("lift_crm", "lift_impactados",
+                                "pedidos_incrementais", "receita_incremental",
+                                "taxa_resp_impactados", "taxa_resp_controle"):
+            try:
+                from . import incrementalidade
+                aviso_lift = incrementalidade.frase(
+                    con, ctx.dominio, ctx.inicio, ctx.fim, ctx.filtros)
+                if aviso_lift:
+                    linhas.append(aviso_lift)
+                    fatos["cuidado_com_volume"] = aviso_lift
+            except Exception:
+                pass
 
     texto = None
     if motor == "llm":

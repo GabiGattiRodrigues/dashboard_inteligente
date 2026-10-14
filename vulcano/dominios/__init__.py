@@ -21,15 +21,15 @@ from typing import Any
 
 from .. import i18n
 from ..semantica import Dominio
-from . import credito, marketing, people, pld, produto
+from . import credito, logistica, marketing, people, pld, produto
 
-_MODULOS = (marketing, credito, produto, pld, people)
+_MODULOS = (marketing, credito, produto, pld, people, logistica)
 
 DOMINIOS: dict[str, Dominio] = {m.DOMINIO.chave: m.DOMINIO for m in _MODULOS}
 _EN: dict[str, dict[str, Any]] = {m.DOMINIO.chave: getattr(m, "EN", {})
                                   for m in _MODULOS}
 
-ORDEM = ["marketing", "credito", "produto", "pld", "people"]
+ORDEM = ["marketing", "credito", "produto", "pld", "people", "logistica"]
 
 _CACHE_EN: dict[str, Dominio] = {}
 

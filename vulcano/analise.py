@@ -58,6 +58,12 @@ def formula_com_numeros(
     m = dom.metrica(mk)
     if not m.formula or not m.eh_razao:
         return None
+    # O lift é uma razão de razões; o SQL calcula com produtos cruzados, que
+    # mostrados na tela viram "209.609.458 ÷ 940.488.840". A conta legível é
+    # a das duas conversões.
+    if mk in ("lift_crm", "lift_impactados"):
+        from . import incrementalidade
+        return incrementalidade.formula(con, dom, inicio, fim, filtros, mk)
     df = agregar(con, dom, [mk], inicio, fim, filtros=filtros)
     if df.empty:
         return None
@@ -123,6 +129,8 @@ def _melhor_dimensao(con, dom, mk, comp, filtros, preferida=None):
     for dk in candidatas:
         if not dk or dk in vistas or dk not in dom.dimensoes:
             continue
+        if not dom.dim_vale(mk, dk):
+            continue
         vistas.add(dk)
         try:
             dec = mod_causa.decompor(con, dom, mk, dk, comp, filtros, top_n=5)
@@ -165,6 +173,7 @@ def ler(
         ))
 
     dim, dec = _melhor_dimensao(con, dom, mk, comp, filtros, dim_preferida)
+    onde = ""
 
     if dec is not None and np.isfinite(dec.delta) and abs(dec.delta) > 0:
         reais = dec.df[~dec.df["segmento"].str.startswith("Outros (")]
@@ -187,6 +196,8 @@ def ler(
                     f"movement is, and looking at the total first only delays "
                     f"the conversation."
                 ))
+                onde = tr(f" — começando por {rot_dim} = **{seg}**",
+                          f" — starting with {rot_dim} = **{seg}**")
             else:
                 L.insights.append(tr(
                     f"A variação está **espalhada** por {rot_dim}: "
@@ -233,6 +244,21 @@ def ler(
                         "and channel — pushing the segment's operations would "
                         "be pushing the wrong person."
                     ))
+
+    # O repertório do agente vem antes da regra genérica: "a ação é dentro
+    # do segmento" vale para todo domínio e não ajuda em nenhum; "o seller
+    # postou fora do limite, cobrar a transportadora não resolve" é o que
+    # quem cuida de logística diria. Com o segmento dentro da frase, o
+    # "comece por" genérico sai para não repetir.
+    if dp is not None and np.isfinite(dp) and abs(dp) > 1e-9:
+        from .playbooks import recomendacao
+        piorou = (dp > 0) != m.bom_quando_sobe
+        rec = recomendacao(dom, mk, piorou, onde)
+        if rec:
+            if onde and L.recomendacoes and L.recomendacoes[0].startswith(
+                    tr("Comece por", "Start with")):
+                L.recomendacoes.pop(0)
+            L.recomendacoes.insert(0, rec)
 
     # --- 2. para onde vai: tendência --------------------------------------- #
     t = None

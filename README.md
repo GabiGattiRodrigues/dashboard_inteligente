@@ -1,11 +1,11 @@
-# Analytics com agente — cinco domínios, um motor
+# Analytics com agente — seis domínios, um motor
 
 Produto de analytics em que o agente não é um chatbot colado ao lado do
 dashboard: ele lê a mesma camada semântica que desenha os gráficos, respeita os
 mesmos filtros e devolve o mesmo número, por construção.
 
-Cinco domínios rodam no mesmo motor — **Marketing e CRM**, **Crédito**,
-**Produto e Operação**, **Compliance e PLD** e **People Analytics** — cada um com o seu próprio
+Seis domínios rodam no mesmo motor — **Marketing e CRM**, **Crédito**,
+**Produto e Operação**, **Compliance e PLD**, **People Analytics** e **Logística** — cada um com o seu próprio
 agente, com nome, rosto, personalidade e vocabulário:
 
 | Agente | Domínio | Como fala |
@@ -15,10 +15,11 @@ agente, com nome, rosto, personalidade e vocabulário:
 | **R2** 🐕 | Produto e Operação | mais velho e muito inteligente: fala pouco e certo, liga as pontas |
 | **Ravena** 🐕‍🦺 | Compliance e PLD | mais velha, calma e vigilante: sem pressa de concluir — o fato, depois a norma, depois o próximo passo, e nunca decide por ninguém |
 | **Tomoyo** 🐾 | People Analytics | jovem, ativa e animada: comemora quando acha o sinal e já quer mostrar o próximo gráfico — e firme num ponto só, fala de grupo, nunca de pessoa |
+| **Vulcão** 🐕 | Logística | energético e inteligente: fala em ritmo de operação — o que venceu, quem acionar, o que fazer hoje — e liga as pontas antes de apontar culpado |
 
 Quem responde sobre crédito não é quem responde sobre marketing, porque as
 ressalvas e o que conta como resposta boa são outros. A personalidade aparece
-no **tom** — nunca no número: os cinco leem o mesmo motor e devolvem o mesmo
+no **tom** — nunca no número: os seis leem o mesmo motor e devolvem o mesmo
 valor. Cada um tem duas caras: a animada na aba de conversa e a atenta na aba
 de alertas, para a pessoa reconhecer quem está falando sem legenda.
 
@@ -309,6 +310,75 @@ e animada em PT e EN, e o domínio saiu de `EM_CONSTRUCAO`.
 
 ---
 
+## Marketing e CRM — a mensuração de campanha da Abigail
+
+A aba **Campanhas** junta mídia paga e CRM: investimento, ROAS, CAC, CTR,
+CPC e funis, campanha a campanha. A camada de campanha é **simulada e amarrada
+aos pedidos reais** do Olist (`scripts/build_campanhas.py`): cada pedido real
+ganha canal e campanha por último clique, o investimento nasce dos pedidos que
+a campanha trouxe, e os disparos de CRM saem da base real de clientes.
+
+O CRM é medido do jeito que se mede na operação: **7 dias depois de cada
+disparo**, de quem recebeu, quem abriu (foi impactado) e quem comprou; a
+resposta de quem abriu contra a do **grupo controle** (10% sorteados que não
+recebem nada) e o ticket médio dos dois. Ao lado vem o **lift real** — todo
+mundo que recebeu contra o controle —, porque quem abre e-mail já compra mais
+por natureza, e "quem abriu × controle" mistura o efeito do disparo com o
+perfil de quem abre. Na base simulada, a newsletter tem +180% na leitura
+clássica e +9% no lift real; o carrinho abandonado, +62% com efeito
+comprovado. Todo lift sai com intervalo de confiança e com o volume do
+controle (`vulcano/incrementalidade.py`). Disparo com a janela de 7 dias
+incompleta fica vazio — medir pela metade pareceria queda.
+
+A Abigail responde `como foram as campanhas de CRM?`, `como foi a campanha
+de carrinho abandonado?`, `como foi o último disparo da newsletter?`, além de
+`qual o ROAS por canal?` e `por que o CAC subiu?`.
+
+---
+
+## Logística — o Vulcão
+
+O sexto domínio volta à base do Olist com a pergunta da manhã de quem cuida da
+entrega: **o que venceu e não chegou, de quem é a vez de agir, e se o atraso
+de hoje é ruído ou é a malha saindo do controle.**
+
+Três decisões de modelagem (`scripts/build_logistica.py`):
+
+1. **A data da linha é a data prometida**, não a da compra — todo pedido do
+   período já venceu, e o fim do gráfico não sai bonito por construção.
+2. **Pedido que nunca chegou conta como fora do prazo**, não some da conta.
+3. **A régua D+3/D+7 vem de dado:** para cada dia depois do prometido, quantos
+   pendentes ainda chegam, com intervalo de Wilson. No Olist, 68% de quem
+   passa do D+7 ainda chega — o D+7 serve para avisar o cliente, e o reenvio
+   automático só faz sentido depois do D+15.
+
+| Aba | O que resolve |
+|---|---|
+| **Pedidos travados** | a fila na data de referência, por faixa da régua (vencido, D+3, D+7, esquecidos), com quem acionar — seller ou transportadora — e a curva que testa a régua |
+| **Controle por origem** | o aviso da semana (a última semana fechada saiu do controle? qual região puxou?), o mapa semana × origem/região e o p-chart de cada segmento |
+
+Métricas: no prazo, atraso grave, nunca chegaram, SLA do seller (postou até o
+limite), dias até postar, dias em trânsito, atraso que começou no seller,
+promessa folgada, frete, nota de quem atrasou e a régua D+3/D+7.
+
+O Vulcão responde `quais pedidos estão travados?`, `como foi a semana? qual
+região puxou?`, `o atraso é do seller ou da transportadora?`, `a régua
+D+3/D+7 faz sentido aqui?` e um pedido pelo código (`me mostra o pedido
+d730d8d0`).
+
+---
+
+## O que cada agente recomenda
+
+O motor sabe dizer onde a métrica mexeu e se foi taxa ou mix; o que fazer com
+isso depende do assunto. `vulcano/playbooks.py` guarda o repertório de cada
+agente — para cada métrica, o que fazer quando piora e quando melhora, no
+vocabulário e no tom de quem cuida daquilo. CAC subindo pede criativo e
+público; seller postando fora do limite pede cobrar o seller, não a
+transportadora; eNPS caindo pede ouvir o grupo antes de mexer em política.
+
+---
+
 ## Arquitetura
 
 ```
@@ -578,11 +648,12 @@ python scripts/conversar.py credito en "what was origination?" "and why?"
 
 | Domínio | Fonte | Período |
 |---|---|---|
-| Marketing e CRM | Brazilian E-Commerce Public Dataset by Olist — **dado público real**, 99 mil pedidos | jan/2017 – ago/2018 |
+| Marketing e CRM | Brazilian E-Commerce Public Dataset by Olist — **dado público real**, 99 mil pedidos; camada de campanha (canal, investimento, disparos, grupo controle) **simulada** sobre esses pedidos | jan/2017 – ago/2018 |
 | Produto e Operação | Mesma base do Olist, lida pela ótica de operação e satisfação | jan/2017 – ago/2018 |
 | Crédito | **Carteira simulada** — ver abaixo | jan/2017 – ago/2018 |
 | Compliance e PLD | **Operação simulada** — ver a seção da Ravena | set/2025 – ago/2026 |
 | People Analytics | **Empresa simulada** — ver a seção da Tomoyo | set/2024 – ago/2026 |
+| Logística | Mesma base do Olist, lida pela **data prometida** de cada pedido | fev/2017 – ago/2018 |
 
 **Sobre o domínio de crédito:** não há base pública de crédito com data de
 originação e marcação de inadimplência disponível, e sem ela não dá para mostrar
@@ -604,6 +675,8 @@ iniciar.bat                 atalho de dois cliques (Windows)
 iniciar.command             atalho de dois cliques (macOS/Linux)
 app.py                      interface Streamlit — só tela, nenhuma conta
 telas_pld.py                as abas que só Compliance tem (fila, dossiê, regras)
+telas_campanhas.py          a aba Campanhas de Marketing (mídia, funis, mensuração de CRM em 7 dias)
+telas_logistica.py          as abas que só Logística tem (pedidos travados, controle por origem)
 vulcano/
   semantica.py              Metrica, Dimensao, Limite, Dominio
   dominios/                 um arquivo por domínio (a única coisa a escrever
@@ -612,6 +685,7 @@ vulcano/
     produto.py
     pld.py
     people.py
+    logistica.py
   pld/                      o que só existe em PLD
     regras.py               catálogo: indicador, corte, condições, norma
     normas.py               os trechos da 3.978 e da 4.001 citados na tela
@@ -623,6 +697,12 @@ vulcano/
     dados.py                tabelas auxiliares do job
   people/                   o que só existe em People Analytics
     agente.py               intenções da Tomoyo: risco, gap ajustado, recusa
+  logistica/                o que só existe em Logística
+    dados.py                fila na data, ponto de não retorno, p-chart, semana
+    agente.py               intenções do Vulcão: travados, régua, controle, pedido
+  marketing/agente.py       mensuração de campanha de CRM da Abigail
+  incrementalidade.py       resposta em 7 dias, lift com intervalo, efeito em quem abriu
+  playbooks.py              o que cada agente recomenda, no assunto dele
   dados.py                  montagem de SQL e acesso via DuckDB
   periodos.py               resolução de período e período comparável
   causa_raiz.py             decomposição aditiva e taxa/mix/interação
@@ -640,6 +720,8 @@ scripts/
   build_credito.py          gerador da carteira simulada
   build_pld.py              gerador da operação de PLD simulada + job de regras
   build_people.py           gerador da empresa simulada de People Analytics
+  build_campanhas.py        camada de campanha simulada sobre os pedidos do Olist
+  build_logistica.py        fato de logística pela data prometida
   exportar_fila.py          CSV da fila para a planilha do Apps Script
   acentuar.py               acentuação do texto (só dentro de literais)
   exportar_amostra.py       roda os motores e exporta o JSON da amostra
@@ -655,6 +737,8 @@ tests/test_motor.py         invariantes do motor
 tests/test_pld.py           invariantes de Compliance
 tests/test_people.py        invariantes de People Analytics
 tests/test_idioma.py        a versão em inglês diz o mesmo que a em português
+tests/test_campanhas.py     invariantes de campanha e da mensuração de CRM
+tests/test_logistica.py     invariantes de Logística
 data/                       parquets gerados
 ```
 

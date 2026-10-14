@@ -231,6 +231,8 @@ def varrer(
         r_seg[d.coluna] = r_seg[d.coluna].astype(str)
 
         for mk in metricas:
+            if not dom.dim_vale(mk, dk):
+                continue
             m = dom.metrica(mk)
             # Relevancia se mede sobre a POPULACAO do segmento, e nao sobre o
             # numerador.
@@ -464,6 +466,7 @@ def motivo_provavel(
                       if d != alerta.dimensao]
     else:
         candidatas = list(dims or dom.alertar_dims)
+    candidatas = dom.dims_da_metrica(alerta.chave_metrica, candidatas)
 
     melhor = None
     for dk in candidatas[:3]:

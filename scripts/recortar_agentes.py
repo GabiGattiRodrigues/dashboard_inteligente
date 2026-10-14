@@ -50,6 +50,10 @@ CORTES = [
     # se a foto de origem nao estiver na pasta (ver main).
     ("tomoyo.jpg", "tomoyo-alerta",  .258, .215, .240),
     ("tomoyo.jpg", "tomoyo-animada", .782, .262, .222),
+    # Vulcão: sentado de língua de fora à esquerda, deitado e atento à
+    # direita, os dois de bandana.
+    ("vulcao.png", "vulcao-animada", .288, .272, .205),
+    ("vulcao.png", "vulcao-alerta",  .735, .318, .195),
 ]
 
 LADO = 320   # 2x do maior uso na tela (160 px na capa)

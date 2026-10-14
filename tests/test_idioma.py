@@ -133,7 +133,8 @@ def test_resposta_em_ingles_nao_vaza_portugues(chave):
 PASSA = re.compile(r"^([A-Z]{2}|\d{4}-\d{2}|[A-E] \(.*\)|approved|canceled|"
                    r"created|delivered|invoiced|processing|shipped|"
                    r"unavailable|LinkedIn|App|PEP|Voucher|Cool stuff|Telemarketing|"
-                   r"La cuisine|Pet shop|PCs)$")
+                   r"La cuisine|Pet shop|PCs|Push|WhatsApp|CRM|"
+                   r"Social • Black Friday 2017)$")
 
 
 @pytest.mark.parametrize("chave", DOMS)

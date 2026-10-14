@@ -54,7 +54,9 @@ def _tem(t: str, termos: list[str]) -> bool:
 # jovem e esperta; Bailey e um cachorro mais velho e metodico; R2 e um cachorro
 # mais velho e muito inteligente; Ravena e uma cadela mais velha, calma e
 # vigilante; Tomoyo e a cadelinha jovem, ativa e animada da turma, e firme
-# num ponto so: fala de grupo, nunca de pessoa. A diferenca aparece onde a personalidade aparece de verdade -- no
+# num ponto so: fala de grupo, nunca de pessoa; Vulcao e o cachorro de bandana,
+# energetico e inteligente, que liga as pontas da entrega antes de apontar
+# culpado. A diferenca aparece onde a personalidade aparece de verdade -- no
 # TOM, no comprimento da frase e no que cada um acha que vale dizer primeiro --,
 # e nunca no numero: os quatro leem o mesmo motor e devolvem o mesmo valor.
 #
@@ -249,6 +251,45 @@ VOZES: dict[str, Voz] = {
                   "por cima — número errado sobre gente vira decisão "
                   "injusta."),
     ),
+    "vulcao": Voz(
+        tom=("Cachorro de pelo marrom e bandana xadrez, energético e muito "
+             "inteligente — o motor da turma. Chega animado, pensa rápido e "
+             "fala em ritmo de operação: o que venceu, quem acionar, o que "
+             "fazer hoje. A energia vem com cabeça: liga as pontas (seller, "
+             "rota, transportadora, promessa) antes de apontar culpado, "
+             "separa ruído de sinal pelo gráfico de controle e nunca chama "
+             "de crise o que está dentro do limite. Entusiasmado com o "
+             "achado, preciso no número, sempre com o próximo passo."),
+        saudacao=(
+            "Opa, bora! Já rodei a fila de {dominio} e separei o que venceu "
+            "hoje — tem coisa para destravar.",
+            "Oi! {dominio} aberto, no período da barra lateral. Começo pela "
+            "fila, pelo controle da semana ou por quem está atrasando mais?",
+            "E aí! Motor ligado: fila, régua e controle por origem prontos. "
+            "Manda a pergunta!",
+        ),
+        agradecimento=("Imagina! Agora é destravar esses pedidos.",
+                       "De nada — pedido andando é o que me deixa feliz.",
+                       "Tamo junto! Qualquer semana fora do controle, eu "
+                       "aviso."),
+        despedida=("Até! Amanhã cedo a fila do D+3 está separada.",
+                   "Tchau! Se alguma região sair do controle, eu grito.",
+                   "Até mais — e nada de pedido passando do D+7!"),
+        como_esta=("A mil! A malha está dentro do controle por enquanto. E "
+                   "você?",
+                   "Ótimo — já tracei a rota de hoje. E você?"),
+        elogio=("Boa! Bora pro próximo?",
+                "Valeu! Quer que eu abra por origem, por região ou por quem "
+                "atrasou?"),
+        convite=("Pergunta do jeito que vier: quais pedidos estão travados, "
+                 "como foi a semana e qual região puxou, se a régua D+3/D+7 "
+                 "faz sentido, se o atraso é do seller ou da transportadora, "
+                 "ou um pedido pelo código (os 8 primeiros caracteres "
+                 "bastam)."),
+        admissao=("Essa eu não peguei! E prefiro dizer isso a chutar — "
+                  "número errado aqui vira cobrança na transportadora "
+                  "errada."),
+    ),
 }
 
 # Voz de reserva: dominio novo que ainda nao declarou personalidade nao pode
@@ -334,6 +375,12 @@ FRACOS: dict[str, list[str]] = {
     "eNPS": ["enps", "e-nps"],
     "Gap bruto e gap ajustado": ["gap"],
     "Por que eu só falo de grupo": ["privacidade", "anonimato", "lgpd"],
+    "Gráfico de controle (p-chart)": ["fora de controle", "limite de "
+                                      "controle"],
+    "A régua D+3/D+7 e o ponto de não retorno": ["regua"],
+    "Intervalo de Wilson": ["margem de erro", "intervalo de confianca",
+                            "ic95", "ic 95"],
+    "Pedido travado": ["esquecidos"],
 }
 
 CONCEITOS: list[tuple[list[str], str, str]] = [
@@ -456,6 +503,9 @@ CONCEITOS: list[tuple[list[str], str, str]] = [
      "Depende do domínio, e a aba **Sobre os dados** conta em detalhe. "
      "Marketing e Produto rodam sobre o Brazilian E-Commerce Public Dataset do "
      "Olist — dado público real, 99 mil pedidos de marketplace brasileiro. "
+     "Em Marketing, a camada de campanha (canal, investimento, disparos de "
+     "CRM e grupo controle) é **simulada** em cima desses pedidos reais, "
+     "porque o Olist não publica de onde cada venda veio. "
      "Crédito roda sobre uma carteira **simulada**, gerada com estrutura "
      "declarada (curva de aprovação por score, maturação da inadimplência, "
      "choque de política, censura à direita), porque não existe base pública "
@@ -725,6 +775,95 @@ CONCEITOS += [
      "\"o salário médio do grupo\" é o salário de alguém. Dado de gente "
      "também é dado pessoal na LGPD, e o que é sobre saúde (atestado) é "
      "sensível — mais um motivo para nunca descer ao indivíduo."),
+
+    (["atribuicao", "atribuido", "ultimo clique", "last click", "last-click",
+      "modelo de atribuicao", "de onde veio o pedido"],
+     "Atribuição por último clique",
+     "Cada pedido vai **inteiro** para a última campanha que a pessoa tocou "
+     "antes de comprar. É o modelo mais comum e o mais fácil de auditar — e "
+     "tem um viés conhecido: superestima o que está no fundo do funil. Busca "
+     "de marca e carrinho abandonado aparecem como heróis porque pegam quem "
+     "já ia comprar; a mídia de prospecção, que trouxe a pessoa semanas antes, "
+     "fica sem crédito.\n\n"
+     "Por isso o ROAS é lido junto do CAC (que olha só para cliente novo) e "
+     "o CRM é lido pelo **lift sobre o grupo controle**, que não depende de "
+     "atribuição nenhuma: compara quem recebeu com quem não recebeu."),
+
+    (["grupo de controle", "grupo controle serve", "por que grupo controle",
+      "serve o grupo controle", "o que e grupo controle", "lift real",
+      "lift classico", "lift aparente",
+      "holdout", "incrementalidade", "o que e lift", "causou a venda",
+      "venda incremental", "teste de holdout"],
+     "Grupo controle e lift",
+     "Todo disparo de CRM separa **10% da audiência, sorteados**, que não "
+     "recebem nada. A mensuração olha **7 dias depois do disparo**: de quem "
+     "recebeu, quem abriu (foi impactado) e quem comprou. Compara-se a "
+     "resposta de quem abriu com a do controle, e o ticket médio dos dois.\n\n"
+     "O cuidado é que quem abre e-mail já compra mais por natureza — então "
+     "\"quem abriu × controle\" mistura o efeito do disparo com o perfil de "
+     "quem abre, e superestima o lift. Por isso eu mostro junto o **lift "
+     "real**: todo mundo que recebeu contra o controle, dois grupos "
+     "sorteados da mesma audiência. Dividindo esse ganho pela taxa de "
+     "abertura sai o efeito sobre quem abriu. E com poucas compras no "
+     "controle o lift oscila muito: leia junto com o volume e o intervalo "
+     "antes de cortar uma régua."),
+
+    (["grafico de controle", "carta de controle", "p-chart", "p chart",
+      "pchart", "limite de controle", "fora de controle", "controle "
+      "estatistico", "causa especial", "causa comum"],
+     "Gráfico de controle (p-chart)",
+     "É o jeito de separar **ruído de mudança de verdade** numa taxa. Para "
+     "cada origem eu pego a taxa fora do prazo de cada semana e desenho a "
+     "média (p̄) e dois limites: `p̄ ± 3·√(p̄(1−p̄)/n)`, com o n DAQUELA "
+     "semana. Semana com pouco pedido tem limite mais largo — é isso que "
+     "impede uma origem pequena de acender alerta todo mês por acaso.\n\n"
+     "Dois sinais contam: um ponto **acima do limite** (a semana foi "
+     "anormal) e **oito semanas seguidas** do mesmo lado da média (o nível "
+     "mudou, mesmo sem nada estourar). Dentro do limite, não se mexe: "
+     "reagir a ruído é o jeito mais rápido de piorar uma operação. E quando "
+     "várias origens estouram na mesma semana, a causa é da malha (pico, "
+     "greve), não de uma origem."),
+
+    (["ponto de nao retorno", "ponto sem volta", "regua d+3", "regua d+7",
+      "d+3/d+7", "d3/d7", "por que d+3", "por que d+7", "de onde vem o d+3",
+      "de onde vem o d+7", "regua"],
+     "A régua D+3/D+7 e o ponto de não retorno",
+     "Para cada dia depois do prometido, eu olho os pedidos que **ainda não "
+     "chegaram** e meço quantos deles acabam chegando. Enquanto a chance é "
+     "alta, a ação certa é **cobrar e esperar** (D+3: transportadora, ou o "
+     "seller se nem postou). Quando ela cai, esperar só piora a experiência "
+     "e é hora de **falar com o cliente** (D+7: reenviar ou estornar, ele "
+     "escolhe).\n\n"
+     "Os marcos não são dogma: eles vêm da curva. No case original, no D+7 "
+     "só um em cada quatro ainda chegava. Na base do Olist a curva cai mais "
+     "devagar — no D+7 ainda chega mais da metade —, então aqui o D+7 serve "
+     "para avisar o cliente, e o reenvio automático fica para quando a "
+     "chance cai abaixo de 50%."),
+
+    (["intervalo de wilson", "wilson", "ic95", "ic 95", "margem de erro",
+      "intervalo de confianca"],
+     "Intervalo de Wilson",
+     "É a **margem de erro** de uma porcentagem, como numa pesquisa "
+     "eleitoral. Se 300 de 500 pedidos pendentes chegaram depois, o "
+     "intervalo diz entre quanto e quanto a taxa de verdade deve estar.\n\n"
+     "Uso o de Wilson, e não o de livro (p ± 1,96·erro), porque esta régua "
+     "vive nos cantos onde o de livro falha: proporção perto de 0% ou 100% e "
+     "origem com poucos pendentes. Lá o intervalo comum pode até passar de "
+     "100%; o de Wilson fica dentro de 0–100% e se lê igual. Quando as "
+     "faixas do D+3 e do D+7 não se cruzam, a queda entre os dois é real."),
+
+    (["pedido travado", "o que e travado", "o que conta como travado",
+      "pedido esquecido", "esquecidos"],
+     "Pedido travado",
+     "Travado é o pedido com **prazo vencido, não entregue** na data que "
+     "você está olhando. A fila é montada como se sabia naquele dia: o "
+     "pedido que chegou depois aparece como travado, porque naquele dia ele "
+     "estava.\n\n"
+     "Eu separo em faixas da régua — vencido há 1–2 dias (acompanhar), D+3 "
+     "a D+6 (cobrar), D+7 a D+30 (falar com o cliente) — e uma quarta, os "
+     "**esquecidos**, vencidos há mais de 30 dias. Esses a régua não salva "
+     "mais: é decidir baixa e estorno. Cada esquecido é um D+7 que ninguém "
+     "fez."),
 ]
 
 

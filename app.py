@@ -1,5 +1,5 @@
 """
-Analytics com agente — quatro domínios, um motor.
+Analytics com agente — seis domínios, um motor.
 
 Ponto de entrada do Streamlit. Este arquivo cuida SÓ da tela: leitura de
 estado, layout e chamada dos motores. Nenhuma conta acontece aqui — toda
@@ -43,6 +43,8 @@ from vulcano.periodos import (NIVEIS_COMPARACAO, PRESETS, contra_dia,
                               montar_preset, rotulo_preset)
 from vulcano.semantica import Dominio
 
+import telas_campanhas
+import telas_logistica
 import telas_pld
 
 # Nome da plataforma. PROVISÓRIO — cada domínio já tem seu próprio agente, com
@@ -232,6 +234,14 @@ DECISOES = [
      "(área × nível), com uma soma de sinais nomeados que aparece na tela, e "
      "recorte com menos de 10 pessoas não aparece: com menos que isso, o "
      "salário médio do grupo é o salário de alguém."),
+    ("Por que Logística conta o pedido pela data prometida",
+     "Pela data da compra, o pedido de ontem ainda não teve tempo de atrasar "
+     "e o fim de qualquer gráfico de prazo sai bonito por construção. Pela "
+     "data prometida, todo pedido do período já venceu, e o que nunca chegou "
+     "entra como atraso em vez de sumir da conta. A régua D+3/D+7 também não "
+     "é costume: vem da curva de quantos pendentes ainda chegam em cada dia "
+     "depois do prometido, com intervalo de Wilson — e no Olist ela mostra "
+     "que o D+7 é cedo demais para reenviar no automático."),
 ]
 
 
@@ -302,6 +312,15 @@ DECISOES_EN = [
      "(area × level), with a sum of named signals shown on screen, and slices "
      "with fewer than 10 people don't show up: with fewer than that, the "
      "group's average salary is someone's salary."),
+    ("Why Logistics counts orders by promised date",
+     "By purchase date, yesterday's order hasn't had time to be late yet, and "
+     "the end of any delivery chart looks good by construction. By promised "
+     "date, every order in the period has already come due, and the one that "
+     "never arrived counts as late instead of vanishing from the math. The "
+     "D+3/D+7 rule isn't habit either: it comes from the curve of how many "
+     "pending orders still arrive on each day after the promise, with a "
+     "Wilson interval — and on Olist it shows that D+7 is too early for an "
+     "automatic resend."),
 ]
 
 
@@ -315,8 +334,8 @@ def render_capa() -> None:
 
     agentes = " · ".join(d.agente_nome for d in listar())
     n = len(listar())
-    quantos = L({3: "Três", 4: "Quatro", 5: "Cinco"}.get(n, str(n)),
-                {3: "Three", 4: "Four", 5: "Five"}.get(n, str(n)))
+    quantos = L({3: "Três", 4: "Quatro", 5: "Cinco", 6: "Seis"}.get(n, str(n)),
+                {3: "Three", 4: "Four", 5: "Five", 6: "Six"}.get(n, str(n)))
     # O elenco e opcional de proposito: sem o arquivo, o cabecalho volta a ser
     # so o texto, em vez de mostrar imagem quebrada.
     uri_elenco = asset_uri("elenco.webp")
@@ -354,8 +373,15 @@ def render_capa() -> None:
     )
 
     st.markdown(L("#### Escolha um domínio", "#### Pick a domain"))
-    cols = st.columns(len(listar()), gap="small")
-    for col, dom in zip(cols, listar()):
+    # Três por linha: com seis domínios lado a lado cada cartão ficava com a
+    # largura de uma coluna de jornal e o texto quebrava a cada duas palavras.
+    doms = listar()
+    por_linha = 3 if len(doms) > 5 else len(doms)
+    pares = []
+    for i in range(0, len(doms), por_linha):
+        cols = st.columns(por_linha, gap="small")
+        pares += list(zip(cols, doms[i:i + por_linha]))
+    for col, dom in pares:
         with col:
             # Os selos entram numa string só. Se o selo de obra virasse uma
             # linha própria, o domínio sem obra deixaria uma linha em branco no
@@ -425,6 +451,12 @@ turnover, clima, contratação e remuneração por grupo, separa o gap salarial 
 cargo do gap de composição e procura o sinal que vem antes da saída — o clima
 que caiu, a promoção que não saiu — porque depois do pedido de demissão já é
 tarde.
+
+O sexto, **Logística**, volta à base do Olist com a pergunta da manhã de quem
+cuida da entrega: o que venceu e não chegou, e de quem é a vez de agir. O
+Vulcão monta a fila de travados com a régua D+3/D+7 — cobrar a transportadora,
+depois falar com o cliente — e lê um gráfico de controle por origem para
+separar o atraso que é ruído do que é a malha saindo do controle.
         """,
         """
 Every area that depends on data has the same queue: someone needs a number,
@@ -456,6 +488,13 @@ individual. She reads turnover, engagement, hiring and pay by group, separates
 the same-job pay gap from the composition gap and looks for the signal that
 comes before an exit — the engagement that dropped, the promotion that didn't
 happen — because after the resignation letter it's too late.
+
+The sixth, **Logistics**, goes back to the Olist data with the morning
+question of whoever runs delivery: what came due and didn't arrive, and whose
+turn it is to act. Vulcão builds the stuck-order queue with the D+3/D+7 rule —
+chase the carrier, then contact the customer — and reads a control chart by
+origin to separate the delay that's noise from the network going out of
+control.
         """))
 
     st.markdown(L("#### Como é feito", "#### How it's built"))
@@ -749,6 +788,10 @@ def aba_alertas(con, dom, fim, filtros):
     # entram logo abaixo dos cartões, com o caminho para o dossiê.
     if dom.chave == "pld":
         telas_pld.bloco_alertas(con, dom, ref, filtros)
+    # Em Logística, idem: o alerta diz que o no prazo caiu; a pergunta
+    # seguinte é quem entrou na régua hoje.
+    if dom.chave == "logistica":
+        telas_logistica.bloco_alertas(con, dom, ref, filtros)
 
     # A explicação vem DEPOIS dos alertas: quem abre a aba quer o que aconteceu,
     # não a metodologia. Quem quiser entender os cortes rola até aqui.
@@ -979,7 +1022,12 @@ def aba_agente(con, dom, inicio, fim, preset, filtros, quebra):
         st.markdown(md(r.texto))
 
         n = len(st.session_state[chave])
-        if r.grafico is not None and not r.grafico.empty:
+        fig_ext = (telas_logistica.grafico_resposta(r)
+                   if dom.chave == "logistica" else None)
+        if fig_ext is not None:
+            st.plotly_chart(fig_ext, use_container_width=True,
+                            key=f"ag_log_{dom.chave}_{n}")
+        elif r.grafico is not None and not r.grafico.empty:
             m = dom.metrica(r.plano["metrica"])
             if r.plano["intencao"] == "causa_raiz":
                 st.plotly_chart(g.cascata(r.grafico, m),
@@ -1394,6 +1442,9 @@ def render_dashboard(chave: str) -> None:
         "clientes": L("Clientes em atenção", "Clients to review"),
         "visao": L("Visão geral", "Overview"),
         "regras": L("Regras e calibração", "Rules & calibration"),
+        "travados": L("Pedidos travados", "Stuck orders"),
+        "campanhas": L("Campanhas", "Campaigns"),
+        "controle": L("Controle por origem", "Control by origin"),
         "comparacao": L("Comparação de períodos", "Period comparison"),
         "causa": L("Causa raiz", "Root cause"),
         "sobre": L("Sobre os dados", "About the data"),
@@ -1401,9 +1452,17 @@ def render_dashboard(chave: str) -> None:
     ordem = ["alertas", "agente"]
     if dom.chave == "pld":
         ordem += ["clientes"]
+    if dom.chave == "logistica":
+        ordem += ["travados"]
     ordem += ["visao"]
+    # Marketing ganha a aba de campanhas logo depois da visão geral: é a
+    # leitura de mídia e CRM que a visão geral (receita, pedidos) não faz.
+    if dom.chave == "marketing":
+        ordem += ["campanhas"]
     if dom.chave == "pld":
         ordem += ["regras"]
+    if dom.chave == "logistica":
+        ordem += ["controle"]
     ordem += ["comparacao", "causa", "sobre"]
     abas = dict(zip(ordem, st.tabs([nomes[k] for k in ordem])))
 
@@ -1414,11 +1473,20 @@ def render_dashboard(chave: str) -> None:
     if dom.chave == "pld":
         with abas["clientes"]:
             telas_pld.aba_clientes(con, dom, dmax, fim, filtros)
+    if dom.chave == "logistica":
+        with abas["travados"]:
+            telas_logistica.aba_travados(con, dom, dmin, dmax, fim, filtros)
     with abas["visao"]:
         aba_visao_geral(con, dom, inicio, fim, comp, filtros, quebra, dmax)
+    if dom.chave == "marketing":
+        with abas["campanhas"]:
+            telas_campanhas.aba_campanhas(con, dom, inicio, fim, comp, filtros)
     if dom.chave == "pld":
         with abas["regras"]:
             telas_pld.aba_regras(con, dom, inicio, fim, filtros)
+    if dom.chave == "logistica":
+        with abas["controle"]:
+            telas_logistica.aba_controle(con, dom, dmin, dmax, fim, filtros)
     with abas["comparacao"]:
         aba_comparacao(con, dom, fim, filtros)
     with abas["causa"]:

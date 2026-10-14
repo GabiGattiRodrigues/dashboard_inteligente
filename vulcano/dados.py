@@ -39,8 +39,10 @@ def conectar(dom: Dominio, pasta: Path | str = PASTA_DADOS) -> duckdb.DuckDBPyCo
             f"Rode os scripts em scripts/ para gerar."
         )
     con = duckdb.connect(database=":memory:")
+    con.execute("SET enable_progress_bar = false")
+    tipo = "TABLE" if getattr(dom, "em_memoria", False) else "VIEW"
     con.execute(
-        f"CREATE OR REPLACE VIEW fato AS SELECT * FROM read_parquet('{caminho}')"
+        f"CREATE OR REPLACE {tipo} fato AS SELECT * FROM read_parquet('{caminho}')"
     )
     return con
 
@@ -137,6 +139,10 @@ def montar_sql(
     onde = [f"data BETWEEN DATE '{inicio}' AND DATE '{fim}'"]
     if filtros:
         onde += filtros.clausulas(dom)
+    # Linha sem valor na dimensão quebrada não é um segmento: em Marketing, a
+    # linha de investimento não tem meio de pagamento, e virar uma barra
+    # "None" com receita zero seria lixo no gráfico e na cascata.
+    onde += [f"{dom.dimensao(d).coluna} IS NOT NULL" for d in dims]
 
     sel = (", ".join(grupos) + ",\n       ") if grupos else ""
     sql = (f"SELECT {sel}{_selects(dom, metricas)}\n"
