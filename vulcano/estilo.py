@@ -96,6 +96,11 @@ CSS = f"""
     border-radius: 8px; font-size: 0.85rem; line-height: 1.5;
     color: {TINTA}; border-left: 2px solid {SERIE[0]};
   }}
+  .vulc-alerta .playbook {{
+    margin-top: 8px; font-size: 0.83rem; line-height: 1.5; color: {TINTA_2};
+  }}
+  .vulc-alerta .playbook .rot {{ font-weight: 650; color: {TINTA}; }}
+  .vulc-alerta .playbook .fonte {{ color: {TINTA_MUDA}; font-style: italic; }}
 
   .vulc-nivel {{
     border: 1px solid {GRADE}; border-radius: 10px; background: {SURFACE};
@@ -313,9 +318,19 @@ def _negrito(t: str) -> str:
 
 
 def cartao_alerta(severidade: str, tipo: str, texto: str, acao: str,
-                  motivo: Optional[str] = None) -> str:
+                  motivo: Optional[str] = None,
+                  playbook: Optional[dict] = None) -> str:
     texto, acao = html_moeda(texto), html_moeda(acao)
     motivo = html_moeda(motivo) if motivo else None
+    bloco_pb = ""
+    if playbook:
+        import html as _html
+        bloco_pb = (
+            f'<div class="playbook"><span class="rot">'
+            f'{L("No playbook:", "From the playbook:")}</span> '
+            f'{_html.escape(playbook["texto"])} '
+            f'<span class="fonte">({_html.escape(playbook["fonte"])})</span>'
+            f'</div>')
     cor = STATUS.get(severidade, TINTA_MUDA)
     icone = {"alta": "▲", "media": "◆", "baixa": "●"}.get(severidade, "●")
     nome = {"alta": L("Severidade alta", "High severity"),
@@ -329,6 +344,7 @@ def cartao_alerta(severidade: str, tipo: str, texto: str, acao: str,
       <div class="txt">{_negrito(texto)}</div>
       <div class="aca">{_negrito(acao)}</div>
       {f'<div class="motivo">{_negrito(motivo)}</div>' if motivo else ''}
+      {bloco_pb}
     </div>"""
 
 

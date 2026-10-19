@@ -25,6 +25,7 @@ from vulcano import alertas as mod_alertas
 from vulcano import i18n
 from vulcano import analise as mod_analise
 from vulcano import causa_raiz as mod_causa
+from vulcano import conhecimento as mod_conhecimento
 from vulcano import graficos as g
 from vulcano.agente import (Contexto, chave_api, pergunta_analise_geral,
                             perguntar, sugestoes)
@@ -146,8 +147,8 @@ ARQUITETURA = [
      "cima de números já calculados. Ele nunca vê a base nem escreve SQL."),
     ("04", "Leitura, não só número",
      "Toda resposta sai em três camadas: o número, o que explica (segmento, "
-     "efeito taxa vs mix, tendência) e o que fazer. As três são derivadas de "
-     "regras sobre os números, então existem mesmo sem chave de API."),
+     "efeito taxa vs mix, tendência) e o que fazer. O que fazer ainda busca "
+     "(RAG) o trecho certo do playbook de cada agente, e cita a fonte."),
 ]
 
 ARQUITETURA_EN = [
@@ -167,12 +168,22 @@ ARQUITETURA_EN = [
      "database or writes SQL."),
     ("04", "A reading, not just a number",
      "Every answer comes in three layers: the number, what explains it "
-     "(segment, rate vs mix effect, trend) and what to do. All three are "
-     "derived from rules over the numbers, so they exist even without an API "
-     "key."),
+     "(segment, rate vs mix effect, trend) and what to do. What to do also "
+     "retrieves (RAG) the right passage of each agent's playbook, and cites "
+     "the source."),
 ]
 
 DECISOES = [
+    ("Por que o RAG entra na recomendação e não no número",
+     "Recuperar número por similaridade de texto é o caminho mais curto para "
+     "o chat discordar do gráfico: o trecho recuperado pode ser de outro "
+     "período, de outro filtro, e não faz conta. Então o número continua "
+     "vindo do motor, e a busca entra só no que fazer: a situação calculada "
+     "(métrica, direção, segmento, efeito taxa ou mix, tendência) vira "
+     "consulta no playbook do agente. A busca é BM25 com filtro por "
+     "metadado, e com chave de API soma embeddings por fusão de ranking. "
+     "Com dezenas de trechos por domínio, banco vetorial seria "
+     "infraestrutura sem problema para resolver."),
     ("Por que não texto-para-SQL direto",
      "Deixar o modelo escrever SQL livre gera três problemas que só aparecem "
      "quando a ferramenta começa a ser usada de verdade: a mesma pergunta "
@@ -246,6 +257,16 @@ DECISOES = [
 
 
 DECISOES_EN = [
+    ("Why RAG goes into the recommendation and not the number",
+     "Retrieving a number by text similarity is the shortest path to the "
+     "chat disagreeing with the chart: the retrieved passage may be from "
+     "another period or filter, and it doesn't do math. So the number still "
+     "comes from the engine, and retrieval only feeds what to do: the "
+     "calculated situation (metric, direction, segment, rate or mix effect, "
+     "trend) becomes a query on the agent's playbook. Search is BM25 with "
+     "metadata filters, plus embeddings via rank fusion when there's an API "
+     "key. With a few dozen passages per domain, a vector database would be "
+     "infrastructure with no problem to solve."),
     ("Why not text-to-SQL",
      "Letting the model write free SQL causes three problems that only show "
      "up once the tool is really used: the same question returns two numbers "
@@ -777,10 +798,12 @@ def aba_alertas(con, dom, fim, filtros):
     else:
         # Os cartões ocupam a largura toda: cada um carrega o motivo provável,
         # que é texto corrido e não cabe em coluna estreita.
+        # O motivo diz ONDE; o playbook diz o que o agente faria com isso.
         for a in al[:10]:
             motivo = mod_alertas.motivo_provavel(con, dom, a, filtros)
+            pb = mod_conhecimento.para_alerta(dom, a)
             st.markdown(cartao_alerta(a.severidade, a.tipo, a.texto,
-                                      a.acao, motivo),
+                                      a.acao, motivo, playbook=pb),
                         unsafe_allow_html=True)
 
     # Em Compliance, o alerta da operação ("o volume da R02 subiu") não serve
@@ -1053,6 +1076,17 @@ def aba_agente(con, dom, inicio, fim, preset, filtros, quebra):
                 st.markdown(md(formula))
                 m = dom.metrica(r.plano["metrica"])
                 st.caption(f"{m.rotulo}: {m.descricao}")
+
+        # O que o agente consultou no playbook para recomendar. Fica à vista
+        # para quem quiser conferir de onde veio o "o que fazer".
+        kb = r.fatos.get("conhecimento") or (
+            r.fatos.get("leitura_do_foco") or {}).get("conhecimento")
+        if kb:
+            with st.expander(L(f"O que {dom.agente_nome} consultou no playbook",
+                               f"What {dom.agente_nome} looked up in the "
+                               f"playbook"), expanded=False):
+                for item in kb:
+                    st.markdown(md(f"**{item['fonte']}**  \n{item['texto']}"))
 
     st.session_state[chave] += [
         {"papel": "user", "texto": pergunta},

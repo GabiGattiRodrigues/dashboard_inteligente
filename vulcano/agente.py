@@ -28,6 +28,15 @@ Um interpretador determinístico assume o lugar do LLM: sinônimos para métrica
 e dimensões, expressões de período, e a narração vem dos mesmos geradores de
 texto que as abas usam. Fica menos fluido e mais limitado, mas não quebra --
 o que importa quando a ferramenta está sendo aberta na frente de alguém.
+
+Onde entra o RAG
+----------------
+Só no "o que fazer". Depois que o motor calcula a situação, ela vira
+consulta no playbook do agente (`conhecimento.py`) e o trecho recuperado vai
+para os FATOS no bloco `conhecimento`. O narrador usa o trecho para a
+recomendação e cita a fonte; o número continua vindo só do motor. Recuperar
+número por similaridade de texto seria a forma mais curta de o chat
+discordar do gráfico.
 """
 
 from __future__ import annotations
@@ -47,6 +56,7 @@ from . import alertas as mod_alertas
 from . import causa_raiz as mod_causa
 from . import tendencia as mod_tendencia
 from . import analise as mod_analise
+from . import conhecimento as mod_conhecimento
 from . import conversa as mod_conversa
 from . import i18n
 from .dados import Filtros, agregar, ultimo_sql
@@ -605,6 +615,15 @@ Três camadas, nesta ordem, em prosa corrida e sem cabeçalhos:
    `tendencia` dos FATOS.
 3. **O que fazer** — recomendação concreta, tirada do bloco `recomendacoes`.
    Diga o próximo passo e por quê, não conselho genérico.
+
+PLAYBOOK (bloco `conhecimento`)
+Quando os FATOS trouxerem `conhecimento`, são trechos do seu playbook
+recuperados para ESTA situação. Use-os para deixar o "o que fazer" com cara
+de quem já viveu o problema (com quem falar, o que não fazer, como medir
+depois) e cite a fonte no fim da frase, entre parênteses, com o título do
+trecho. O playbook diz O QUE fazer, nunca QUANTO: nenhum número da resposta
+pode vir dele. Se um trecho não combinar com o que os números mostram,
+ignore-o — o número manda, o playbook acompanha.
 
 Se os FATOS trouxerem `formula_com_numeros`, incorpore a conta ao explicar — é
 o que deixa a pessoa refazer o número no papel. Se trouxerem ressalva
@@ -1233,6 +1252,20 @@ def perguntar(
         plano_ext.setdefault("metrica", ctx.dominio.metricas_painel[0])
         plano_ext.setdefault("preset", ctx.preset_comparacao)
         fatos, tabela, grafico, linhas = ext.executar(con, plano_ext, ctx)
+        # Pergunta de domínio (fila, cliente, régua) não passa pela leitura
+        # de métrica, então o playbook é buscado só pelo texto -- e só vai
+        # para o narrador, que sabe descartar o que não combinar.
+        if usar_llm and chave_api() and "conhecimento" not in fatos:
+            try:
+                achados = mod_conhecimento.buscar(
+                    ctx.dominio.chave,
+                    mod_conhecimento.Situacao(pergunta=pergunta), k=2,
+                    usar_embeddings=True)
+                if achados:
+                    fatos["conhecimento"] = mod_conhecimento.para_fatos(
+                        achados, ctx.dominio.agente_nome)
+            except Exception:
+                pass
         texto = narrar_com_llm(pergunta, fatos, ctx) if (
             usar_llm and chave_api()) else None
         return Resposta(texto=texto or "\n\n".join(linhas), plano=plano_ext,
@@ -1262,7 +1295,8 @@ def perguntar(
             comp = montar_preset(plano["preset"], ctx.fim)
             leitura = mod_analise.ler(
                 con, ctx.dominio, plano["metrica"], ctx.inicio, ctx.fim, comp,
-                ctx.filtros, dim_preferida=plano.get("dimensao"))
+                ctx.filtros, dim_preferida=plano.get("dimensao"),
+                pergunta=pergunta, usar_embeddings=(motor == "llm"))
             fatos.update(leitura.para_fatos())
             if leitura.formula:
                 linhas.append(L("**A conta:** ", "**The math:** ")
@@ -1274,6 +1308,8 @@ def perguntar(
             if leitura.recomendacoes:
                 linhas.append(L("**O que fazer:** ", "**What to do:** ")
                               + leitura.recomendacoes[0])
+            if leitura.conhecimento:
+                linhas.append(mod_conhecimento.linha(leitura.conhecimento[0]))
         except Exception:
             pass    # leitura e um extra; nunca deve derrubar a resposta
 

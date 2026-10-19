@@ -18,6 +18,14 @@ número: se a variação é de taxa ou de mix, se a série tem sazonalidade fort
 o desvio se concentra num segmento ou está espalhado. Essas distinções mudam a
 recomendação de lado — mix pede aquisição, taxa pede operação. Deixá-las para o
 modelo é convidar conselho genérico. Aqui elas são calculadas e viram regra.
+
+E o repertório vem do playbook
+------------------------------
+Depois de calculada a situação (métrica, direção, segmento, efeito,
+tendência), ela vira consulta na base de conhecimento do agente
+(`conhecimento.py`) e volta com o trecho do playbook que serve para ela. É o
+RAG do painel -- e ele entra só aqui, na camada do que fazer. O número nunca
+passa por ele.
 """
 
 from __future__ import annotations
@@ -89,6 +97,8 @@ class Leitura:
     tendencia: list[str] = field(default_factory=list)
     recomendacoes: list[str] = field(default_factory=list)
     formula: Optional[str] = None
+    # Trechos do playbook recuperados para a situação: [{fonte, texto, tipo}]
+    conhecimento: list[dict[str, str]] = field(default_factory=list)
 
     def vazia(self) -> bool:
         return not (self.insights or self.tendencia or self.recomendacoes)
@@ -103,6 +113,8 @@ class Leitura:
             saida["recomendacoes"] = self.recomendacoes
         if self.formula:
             saida["formula_com_numeros"] = self.formula
+        if self.conhecimento:
+            saida["conhecimento"] = self.conhecimento
         return saida
 
 
@@ -151,10 +163,15 @@ def ler(
     con: duckdb.DuckDBPyConnection, dom: Dominio, mk: str,
     inicio: date, fim: date, comp: Comparacao,
     filtros: Optional[Filtros] = None, dim_preferida: Optional[str] = None,
+    pergunta: str = "", usar_embeddings: bool = False,
 ) -> Leitura:
     """Monta insight, tendência e recomendação para uma métrica."""
     m = dom.metrica(mk)
     L = Leitura()
+    # O que foi achado no caminho vira a consulta ao playbook no fim.
+    piorou: Optional[bool] = None
+    sinais: list[str] = []
+    seg_foco, dim_foco, rot_dim_foco = "", None, ""
     L.formula = formula_com_numeros(con, dom, mk, inicio, fim, filtros)
 
     # --- 1. o que explica: comparação e decomposição ---------------------- #
@@ -183,6 +200,9 @@ def ler(
             rot_dim = dom.dimensao(dim).rotulo.lower()
             parte = abs(float(topo["share_da_variacao"]))
             if parte >= 0.3:
+                sinais.append("concentrado")
+                seg_foco, dim_foco = str(topo["segmento"]), dim
+                rot_dim_foco = dom.dimensao(dim).rotulo
                 L.insights.append(tr(
                     f"A variação se concentra: **{seg}** responde "
                     f"por {pct(parte, 0, sinal=False)} dela sozinho(a).",
@@ -199,6 +219,7 @@ def ler(
                 onde = tr(f" — começando por {rot_dim} = **{seg}**",
                           f" — starting with {rot_dim} = **{seg}**")
             else:
+                sinais.append("espalhado")
                 L.insights.append(tr(
                     f"A variação está **espalhada** por {rot_dim}: "
                     f"o maior contribuinte responde por só "
@@ -215,6 +236,7 @@ def ler(
             mix = float(dec.df["efeito_mix"].sum())
             if abs(taxa) + abs(mix) > 1e-12:
                 if abs(taxa) >= abs(mix) * 1.5:
+                    sinais.append("efeito_taxa")
                     L.insights.append(tr(
                         "Predomina **efeito taxa**: os segmentos mudaram de "
                         "patamar de verdade, não é só composição.",
@@ -230,6 +252,7 @@ def ler(
                         "acquisition won't fix it."
                     ))
                 elif abs(mix) >= abs(taxa) * 1.5:
+                    sinais.append("efeito_mix")
                     L.insights.append(tr(
                         "Predomina **efeito mix**: nenhum segmento mudou muito "
                         "de patamar; mudou quem entrou na base.",
@@ -272,6 +295,7 @@ def ler(
         if t.direcao != "estavel":
             bom = (t.inclinacao_dia > 0) == m.bom_quando_sobe
             if not bom:
+                sinais.append("tendencia")
                 ritmo = pct(abs(t.inclinacao_pct_mes), 0, sinal=False)
                 L.recomendacoes.append(tr(
                     f"A inclinação é sustentada, não um ponto fora da curva: "
@@ -283,6 +307,7 @@ def ler(
                     f"the problem."
                 ))
         if t.amplitude_semanal and t.amplitude_semanal > 0.15:
+            sinais.append("sazonal")
             L.recomendacoes.append(tr(
                 "A série tem sazonalidade semanal forte. Compare o dia com "
                 "**D-7** ou com a média dos mesmos dias da semana; contra "
@@ -309,6 +334,7 @@ def ler(
     except Exception:
         al = []
     if al:
+        sinais.append("alerta")
         a = al[0]
         L.insights.append(tr(
             f"Esta métrica já está em alerta em {i18n.data_curta(fim)}: "
@@ -326,6 +352,20 @@ def ler(
             f"Nothing here calls for immediate action. To go deeper, ask for "
             f"the root cause by another dimension — {outras}."
         ))
+
+    # --- 4. o repertório: o trecho do playbook para esta situação ---------- #
+    # Recupera o que fazer, nunca quanto. Falha aqui não derruba a leitura.
+    try:
+        from . import conhecimento
+        sit = conhecimento.Situacao(
+            metrica=mk, rotulo_metrica=m.rotulo, piorou=piorou,
+            dimensao=dim_foco, rotulo_dimensao=rot_dim_foco,
+            segmento=seg_foco, sinais=tuple(sinais), pergunta=pergunta)
+        achados = conhecimento.buscar(dom.chave, sit, k=2,
+                                      usar_embeddings=usar_embeddings)
+        L.conhecimento = conhecimento.para_fatos(achados, dom.agente_nome)
+    except Exception:
+        L.conhecimento = []
     return L
 
 
@@ -453,5 +493,10 @@ def narrar_analise_geral(dom: Dominio, dados: dict[str, Any]) -> list[str]:
         linhas.append(tr("**O que fazer primeiro**", "**What to do first**"))
         for i, r in enumerate(recs[:3], 1):
             linhas.append(f"{i}. {r}")
+
+    kb = leitura.get("conhecimento", [])
+    if kb:
+        from .conhecimento import linha as linha_playbook
+        linhas.append(linha_playbook(kb[0]))
 
     return linhas

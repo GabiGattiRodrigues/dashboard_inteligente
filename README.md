@@ -377,6 +377,31 @@ vocabulário e no tom de quem cuida daquilo. CAC subindo pede criativo e
 público; seller postando fora do limite pede cobrar o seller, não a
 transportadora; eNPS caindo pede ouvir o grupo antes de mexer em política.
 
+### Base de conhecimento (RAG)
+
+Por cima disso, cada agente tem um playbook em `conhecimento/<domínio>.md`:
+trechos curtos sobre o que fazer numa situação (com quem falar, o que não
+fazer, como medir depois), cada um marcado com as métricas, a direção
+(piora/melhora), as dimensões e os sinais (concentrado, espalhado, efeito
+taxa, efeito mix, tendência, sazonalidade, alerta) para os quais serve.
+
+Depois que o motor calcula a situação, ela vira consulta nesse playbook
+(`vulcano/conhecimento.py`). O trecho recuperado entra no bloco `conhecimento`
+dos FATOS, o narrador usa na recomendação e cita a fonte, e o mesmo trecho
+aparece no cartão de alerta e no expansor "o que o agente consultou".
+
+O RAG entra **só no que fazer, nunca no número**. Recuperar número por
+similaridade de texto é o caminho mais curto para o chat discordar do
+gráfico: o trecho pode ser de outro período, de outro filtro, e não faz conta.
+
+A busca é simples de propósito: filtro duro por domínio, direção, métrica e
+sinal; BM25 sobre o texto (pt + en, então pergunta em inglês acha o mesmo
+trecho); bônus de metadado. Com chave da OpenAI, embeddings entram como
+segundo ranking e os dois são fundidos por RRF. Sem chave, fica só o BM25 e a
+busca é determinística. Com dezenas de trechos por domínio, banco vetorial
+seria infraestrutura sem problema para resolver. Para mudar o que um agente
+recomenda, basta editar o `.md`.
+
 ---
 
 ## Arquitetura
@@ -674,11 +699,13 @@ causa raiz encontra sozinho as safras de set/out/nov de 2017 como as piores.
 iniciar.bat                 atalho de dois cliques (Windows)
 iniciar.command             atalho de dois cliques (macOS/Linux)
 app.py                      interface Streamlit — só tela, nenhuma conta
+conhecimento/               playbook de cada agente (a base do RAG), um .md por domínio
 telas_pld.py                as abas que só Compliance tem (fila, dossiê, regras)
 telas_campanhas.py          a aba Campanhas de Marketing (mídia, funis, mensuração de CRM em 7 dias)
 telas_logistica.py          as abas que só Logística tem (pedidos travados, controle por origem)
 vulcano/
   semantica.py              Metrica, Dimensao, Limite, Dominio
+  conhecimento.py           RAG: lê os playbooks e busca o trecho da situação
   dominios/                 um arquivo por domínio (a única coisa a escrever
     marketing.py            para adicionar um quarto)
     credito.py
@@ -862,6 +889,12 @@ fila da aba é o "em aberto" do motor, que alerta imaturo não entra em taxa,
 que o prazo de comunicação pula feriado, que a prioridade é a soma dos fatores
 mostrados, que o dossiê não inventa número nem decide, e que cada pergunta vai
 para a rota certa.
+
+Na base de conhecimento, `tests/test_conhecimento.py` cobra que todo trecho
+fala de métrica e dimensão que existem, que playbook não carrega número de
+resultado, que trecho de piora não aparece quando a métrica melhorou, que o
+de efeito mix não aparece quando foi efeito taxa, que pergunta em inglês acha
+o mesmo trecho e que pergunta fora de assunto não recebe recomendação.
 
 ---
 
