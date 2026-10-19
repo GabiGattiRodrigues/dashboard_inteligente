@@ -107,24 +107,29 @@ def _base(fig: go.Figure, altura: int = 340, titulo: str = "") -> go.Figure:
 def linha_temporal(
     df: pd.DataFrame, m: Metrica, coluna: Optional[str] = None,
     media_movel: Optional[str] = "media_movel", titulo: str = "",
-    altura: int = 320,
+    altura: int = 320, mensal: bool = False,
 ) -> go.Figure:
-    """Série diária com média movel. Duas séries => legenda presente."""
+    """Série diária (ou mensal) com média movel. Duas séries => legenda."""
     col = coluna or m.chave
     d = df.dropna(subset=[col])
     rotulos = [numero(v, m) for v in d[col]]
+    nome = L("Mensal", "Monthly") if mensal else L("Diário", "Daily")
+    nome_mm = (L("Média móvel 3 meses", "3-month moving average") if mensal
+               else L("Média móvel 7 dias", "7-day moving average"))
+    fmt_x = "%m/%Y" if mensal else i18n.formato_data_plotly()
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(
-        x=d["data"], y=d[col], name=L("Diário", "Daily"), mode="lines",
+        x=d["data"], y=d[col], name=nome,
+        mode="lines+markers" if mensal else "lines",
         line=dict(color=SERIE[0], width=1.4),
         customdata=rotulos,
-        hovertemplate="%{x|" + i18n.formato_data_plotly() + "}<br><b>%{customdata}</b><extra>" + L("Diário", "Daily") + "</extra>",
+        hovertemplate="%{x|" + fmt_x + "}<br><b>%{customdata}</b><extra>" + nome + "</extra>",
     ))
     tem_mm = media_movel and media_movel in d.columns and d[media_movel].notna().any()
     if tem_mm:
         fig.add_trace(go.Scatter(
-            x=d["data"], y=d[media_movel], name=L("Média móvel 7 dias", "7-day moving average"), mode="lines",
+            x=d["data"], y=d[media_movel], name=nome_mm, mode="lines",
             line=dict(color=SERIE[1], width=2),
             customdata=[numero(v, m) for v in d[media_movel]],
             hovertemplate="%{x|" + i18n.formato_data_plotly() + "}<br><b>%{customdata}</b>"

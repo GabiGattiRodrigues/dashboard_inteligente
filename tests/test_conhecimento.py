@@ -120,3 +120,14 @@ def test_deterministico():
 def test_fora_de_assunto_nao_recomenda():
     sit = kb.Situacao(pergunta="qual a previsão do tempo amanhã?")
     assert kb.buscar("logistica", sit, k=2) == []
+
+
+def test_linha_da_conversa_nao_traz_fonte():
+    item = {"fonte": "playbook Abigail › Algo", "texto": "Faz isso.",
+            "tipo": "playbook"}
+    assert "playbook Abigail" not in kb.linha(item)
+
+
+def test_direcao_desconhecida_so_traz_trecho_dos_dois_sentidos():
+    for a in kb.buscar("credito", kb.Situacao(metrica="taxa_aprovacao"), k=5):
+        assert a.trecho.quando == "ambos"

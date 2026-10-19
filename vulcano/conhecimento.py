@@ -351,6 +351,11 @@ def _cabe(t: Trecho, sit: Situacao) -> bool:
     if sit.piorou is not None and t.quando != "ambos":
         if (t.quando == "piora") != sit.piorou:
             return False
+    # Métrica conhecida mas direção desconhecida (sem comparação e sem
+    # tendência): só trecho que vale nos dois sentidos. Recomendar "o que
+    # fazer quando piora" para métrica que melhorou é o pior erro aqui.
+    if sit.piorou is None and sit.metrica and t.quando != "ambos":
+        return False
     if t.metricas and sit.metrica and sit.metrica not in t.metricas:
         return False
     if t.metricas and not sit.metrica and not sit.pergunta:
@@ -432,9 +437,9 @@ def para_fatos(achados: list[Achado], agente: str) -> list[dict[str, str]]:
 
 
 def linha(item: dict[str, str]) -> str:
-    """A frase da resposta sem LLM."""
-    return (L("**No playbook:** ", "**From the playbook:** ")
-            + item["texto"] + f" *({item['fonte']})*")
+    """A frase da resposta sem LLM. A fonte não entra no texto da conversa --
+    fica no expansor "o que o agente consultou", para quem quiser conferir."""
+    return L("**No playbook:** ", "**From the playbook:** ") + item["texto"]
 
 
 def situacao_do_alerta(dom: Any, alerta: Any) -> Situacao:

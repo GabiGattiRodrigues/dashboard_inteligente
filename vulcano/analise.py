@@ -291,6 +291,14 @@ def ler(
         t = None
 
     if t is not None:
+        # Métrica de maturação não tem comparação no mês selecionado; a
+        # direção para o playbook vem então da tendência, se ela for real.
+        if piorou is None and t.direcao != "estavel":
+            piorou = (t.inclinacao_dia > 0) != m.bom_quando_sobe
+            from .playbooks import recomendacao
+            rec = recomendacao(dom, mk, piorou, onde)
+            if rec:
+                L.recomendacoes.insert(0, rec)
         L.tendencia = mod_tendencia.descrever(t)
         if t.direcao != "estavel":
             bom = (t.inclinacao_dia > 0) == m.bom_quando_sobe

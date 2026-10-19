@@ -19,6 +19,16 @@ O que este modulo separa
 
 Sem dependência de scipy: a inclinação e o t são contas fechadas de OLS
 simples, e o p-valor sai de uma aproximação normal, honesta para n > 30.
+
+Métrica que não tem leitura diária
+----------------------------------
+Over30 no MOB3, falso positivo de alerta maduro, turnover precoce: são
+métricas de maturação. No mês selecionado a safra ainda não amadureceu, a
+série diária vem vazia e "não há dias suficientes" seria verdade e inútil.
+Nesses casos a leitura cai para a **série mensal dos últimos 12 meses**,
+que é como essas métricas são acompanhadas de verdade. Com poucos pontos a
+aproximação normal deixa de ser honesta, então a significância usa o t
+crítico da distribuição t de Student para os graus de liberdade da série.
 """
 
 from __future__ import annotations
@@ -32,7 +42,7 @@ import duckdb
 import numpy as np
 import pandas as pd
 
-from .dados import Filtros, serie_diaria
+from .dados import Filtros, agregar, serie_diaria
 from .formatacao import numero, pct
 from . import i18n
 from .i18n import L
@@ -62,6 +72,34 @@ class Tendencia:
     amplitude_semanal: Optional[float]
     perfil_semanal: pd.DataFrame
     n_dias: int
+    granularidade: str = "dia"   # "dia" ou "mes"
+    ultimo_ponto: Optional[date] = None
+    projecao: Optional[float] = None   # só com tendência significante
+    horizonte: int = 1                 # dias (diário) ou meses (mensal)
+
+
+# t crítico bilateral a 5% por graus de liberdade (tabela da t de Student).
+_T_CRITICO = {1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571, 6: 2.447,
+              7: 2.365, 8: 2.306, 9: 2.262, 10: 2.228, 11: 2.201,
+              12: 2.179, 13: 2.160, 14: 2.145, 15: 2.131, 20: 2.086,
+              30: 2.042}
+
+
+def _t_critico(gl: int) -> float:
+    if gl <= 0:
+        return float("inf")
+    chaves = [k for k in _T_CRITICO if k <= gl]
+    return _T_CRITICO[max(chaves)] if gl <= 30 else 1.96
+
+
+def _limitar(valor: float, m) -> float:
+    """Projeção não atravessa o que a métrica permite: percentual fica entre
+    0 e 100%, contagem e dinheiro não ficam negativos."""
+    if m.formato == "percentual":
+        return min(max(valor, 0.0), 1.0)
+    if m.formato in ("moeda", "inteiro") and valor < 0:
+        return 0.0
+    return valor
 
 
 def _ols(y: np.ndarray) -> tuple[float, float, float]:
@@ -100,13 +138,11 @@ def analisar(
     janela_movel: int = 7,
 ) -> Optional[Tendencia]:
     df = serie_diaria(con, dom, [chave_metrica], inicio, fim, filtros)
+    if not df.empty:
+        df = df[["data", chave_metrica]].rename(columns={chave_metrica: "valor"})
+        df = df.dropna(subset=["valor"]).sort_values("data").reset_index(drop=True)
     if df.empty or len(df) < 5:
-        return None
-
-    df = df[["data", chave_metrica]].rename(columns={chave_metrica: "valor"})
-    df = df.dropna(subset=["valor"]).sort_values("data").reset_index(drop=True)
-    if len(df) < 5:
-        return None
+        return analisar_mensal(con, dom, chave_metrica, fim, filtros)
 
     df["media_movel"] = df["valor"].rolling(janela_movel, min_periods=2).mean()
     y = df["valor"].to_numpy(dtype=float)
@@ -154,18 +190,98 @@ def analisar(
         if perfil["indice"].notna().any() else None
     )
 
+    # Onde a reta ajustada chega se o ritmo continuar. Extrapolação linear,
+    # não modelo de previsão -- e o texto diz isso. Só projeta metade do
+    # tamanho da janela para a frente (prolongar 23 dias de reta por 30 é
+    # inventar), e cala quando a reta bate no limite da métrica: "a receita
+    # chega a zero" não dimensiona problema nenhum.
+    projecao, horizonte = None, 0
+    if significante and len(y) >= 14:
+        horizonte = min(30, len(y) // 2)
+        ajuste_fim = float(np.mean(y) + b * ((len(y) - 1) / 2))
+        bruto = ajuste_fim + b * horizonte
+        lim = _limitar(bruto, dom.metrica(chave_metrica))
+        if lim == bruto and bruto != 0:
+            projecao = bruto
+
     return Tendencia(
         dominio=dom, chave_metrica=chave_metrica, serie=df,
         inclinacao_dia=b, inclinacao_pct_mes=incl_pct_mes,
         t_stat=t, p_valor=p, significante=significante, direcao=direcao,
         nivel_medio=nivel, media_7=m7, media_28_anterior=m28, momento=momento,
         sequencia=int(seq), amplitude_semanal=amp, perfil_semanal=perfil,
-        n_dias=len(df),
+        n_dias=len(df), ultimo_ponto=pd.Timestamp(df["data"].iloc[-1]).date(),
+        projecao=projecao, horizonte=horizonte,
+    )
+
+
+def analisar_mensal(
+    con: duckdb.DuckDBPyConnection, dom: Dominio, chave_metrica: str,
+    fim: date, filtros: Optional[Filtros] = None, meses: int = 12,
+) -> Optional[Tendencia]:
+    """Tendência sobre a série mensal dos últimos `meses` até `fim`.
+
+    Cada mês é agregado inteiro pelo motor (o mesmo `agregar` das abas), então
+    o valor do mês é o valor que o painel mostraria para aquele mês. Mês sem
+    valor -- safra ainda imatura, antes do início da base -- sai da série.
+    """
+    ref = pd.Timestamp(fim).to_period("M")
+    linhas = []
+    for i in range(meses - 1, -1, -1):
+        per = ref - i
+        ini_m = per.start_time.date()
+        fim_m = min(per.end_time.date(), fim)
+        v = agregar(con, dom, [chave_metrica], ini_m, fim_m, filtros=filtros)
+        valor = float(v.iloc[0][chave_metrica]) if (
+            not v.empty and pd.notna(v.iloc[0][chave_metrica])) else np.nan
+        linhas.append({"data": pd.Timestamp(ini_m), "valor": valor})
+    df = pd.DataFrame(linhas).dropna(subset=["valor"]).reset_index(drop=True)
+    if len(df) < 4:
+        # Safra longa (default no MOB12) quase não tem mês maduro em um ano:
+        # olha dois antes de desistir.
+        if meses < 24:
+            return analisar_mensal(con, dom, chave_metrica, fim, filtros, 24)
+        return None
+
+    y = df["valor"].to_numpy(dtype=float)
+    b, _, t = _ols(y)
+    gl = len(y) - 2
+    significante = bool(np.isfinite(t) and abs(t) > _t_critico(gl))
+    direcao = "estavel" if not significante else ("alta" if b > 0 else "baixa")
+    nivel = float(np.nanmean(y))
+    df["media_movel"] = df["valor"].rolling(3, min_periods=2).mean()
+
+    ultimo = float(y[-1])
+    anteriores = y[-4:-1]
+    m_ant = float(np.mean(anteriores)) if len(anteriores) else float("nan")
+    momento = ((ultimo - m_ant) / abs(m_ant)) if (
+        np.isfinite(m_ant) and m_ant != 0) else None
+
+    projecao = None
+    if significante and len(y) >= 6:
+        ajuste_fim = float(np.mean(y) + b * ((len(y) - 1) / 2))
+        bruto = ajuste_fim + b
+        if _limitar(bruto, dom.metrica(chave_metrica)) == bruto and bruto != 0:
+            projecao = bruto
+
+    return Tendencia(
+        dominio=dom, chave_metrica=chave_metrica, serie=df,
+        inclinacao_dia=b, inclinacao_pct_mes=(b / nivel) if nivel else float("nan"),
+        t_stat=t, p_valor=float("nan"), significante=significante,
+        direcao=direcao, nivel_medio=nivel, media_7=ultimo,
+        media_28_anterior=m_ant, momento=momento, sequencia=0,
+        amplitude_semanal=None, perfil_semanal=pd.DataFrame(
+            columns=["dia_semana", "valor", "dia", "indice"]),
+        n_dias=len(df), granularidade="mes",
+        ultimo_ponto=pd.Timestamp(df["data"].iloc[-1]).date(),
+        projecao=projecao,
     )
 
 
 def descrever(tend: Tendencia) -> list[str]:
     """Lê a tendência em português, dizendo também quando NÃO há tendência."""
+    if tend.granularidade == "mes":
+        return _descrever_mensal(tend)
     m = tend.dominio.metrica(tend.chave_metrica)
     out: list[str] = []
 
@@ -196,6 +312,9 @@ def descrever(tend: Tendencia) -> list[str]:
             f"statistically distinguishable from zero (t = {tend.t_stat:.2f}, "
             f"p = {tend.p_valor:.3f}), over {tend.n_dias} days."
         ))
+
+    out += _frase_projecao(tend, m, L(f"nos próximos {tend.horizonte} dias",
+                                      f"over the next {tend.horizonte} days"))
 
     if tend.momento is not None and np.isfinite(tend.momento):
         m7, m28 = numero(tend.media_7, m), numero(tend.media_28_anterior, m)
@@ -247,4 +366,67 @@ def descrever(tend: Tendencia) -> list[str]:
                 f"— the right comparison is against D-7."
             ))
 
+    return out
+
+
+def _frase_projecao(tend: Tendencia, m, horizonte: str) -> list[str]:
+    if tend.projecao is None:
+        return []
+    alvo = numero(tend.projecao, m)
+    return [L(
+        f"**Se o ritmo continuar**, {m.rotulo} chega perto de {alvo} "
+        f"{horizonte}. É a reta prolongada, não um modelo de previsão: serve "
+        f"para dimensionar o problema, não para prometer número.",
+        f"**If the pace holds**, {m.rotulo} gets close to {alvo} "
+        f"{horizonte}. That's the line extended, not a forecasting model: it "
+        f"sizes the problem, it doesn't promise a number."
+    )]
+
+
+def _descrever_mensal(tend: Tendencia) -> list[str]:
+    """A mesma leitura, na escala de mês, para métrica de maturação."""
+    m = tend.dominio.metrica(tend.chave_metrica)
+    out: list[str] = []
+    incl = numero(tend.inclinacao_dia, m, sinal=True)
+    nivel = numero(tend.nivel_medio, m)
+    ate = i18n.mes_ano(tend.ultimo_ponto.strftime("%Y-%m"))
+    out.append(L(
+        f"{m.rotulo} não tem leitura diária suficiente no período selecionado "
+        f"(métrica que só fecha depois de maturar, ou rala por dia), então "
+        f"olhei a série **mensal** dos últimos "
+        f"{tend.n_dias} meses com valor, até {ate}.",
+        f"{m.rotulo} has no usable daily reading in the selected period (a "
+        f"metric that only closes after maturing, or sparse by day), so I "
+        f"looked at the **monthly** series over the "
+        f"last {tend.n_dias} months with a value, up to {ate}."
+    ))
+    if tend.direcao == "estavel":
+        out.append(L(
+            f"**{m.rotulo} está estável**: a reta inclina {incl} por mês, mas "
+            f"com t = {tend.t_stat:.2f} em {tend.n_dias} meses isso não se "
+            f"distingue de ruído. Nível médio de {nivel}.",
+            f"**{m.rotulo} is stable**: the line slopes {incl} a month, but "
+            f"with t = {tend.t_stat:.2f} over {tend.n_dias} months that is "
+            f"indistinguishable from noise. Average level of {nivel}."
+        ))
+    else:
+        out.append(L(
+            f"**{m.rotulo} em {tend.direcao}**: {incl} por mês sobre um nível "
+            f"médio de {nivel}. A inclinação passa no teste t para "
+            f"{tend.n_dias} meses (t = {tend.t_stat:.2f}).",
+            f"**{m.rotulo} "
+            f"{'trending up' if tend.direcao == 'alta' else 'trending down'}**"
+            f": {incl} a month over an average level of {nivel}. The slope "
+            f"passes the t test for {tend.n_dias} months (t = "
+            f"{tend.t_stat:.2f})."
+        ))
+    out += _frase_projecao(tend, m, L("no próximo mês", "next month"))
+    if tend.momento is not None and np.isfinite(tend.momento):
+        ult, ant = numero(tend.media_7, m), numero(tend.media_28_anterior, m)
+        out.append(L(
+            f"O último mês com valor fechou em {ult}, contra {ant} na média "
+            f"dos três anteriores ({pct(tend.momento)}).",
+            f"The last month with a value closed at {ult}, against {ant} on "
+            f"average over the three before ({pct(tend.momento)})."
+        ))
     return out

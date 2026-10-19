@@ -34,7 +34,8 @@ Onde entra o RAG
 Só no "o que fazer". Depois que o motor calcula a situação, ela vira
 consulta no playbook do agente (`conhecimento.py`) e o trecho recuperado vai
 para os FATOS no bloco `conhecimento`. O narrador usa o trecho para a
-recomendação e cita a fonte; o número continua vindo só do motor. Recuperar
+recomendação (a fonte fica no expansor da tela, não no texto); o número
+continua vindo só do motor. Recuperar
 número por similaridade de texto seria a forma mais curta de o chat
 discordar do gráfico.
 """
@@ -451,8 +452,12 @@ def interpretar_deterministico(pergunta: str, ctx: Contexto) -> dict[str, Any]:
                    "ao longo", "evolucao", "acelerou", "desacelerou",
                    "sazonal", "sazonalidade", "trajetoria", "comportamento",
                    "historico", "serie", "melhorando", "piorando",
-                   "evoluindo", "estabilizou",
-                   "trend", "growing", "falling", "rising", "declining",
+                   "evoluindo", "estabilizou", "previsao", "projecao",
+                   "projetar", "projete", "para onde", "pra onde",
+                   "vai piorar", "vai melhorar", "vai subir", "vai cair",
+                   "vai evoluir", "vai ficar", "o que esperar", "vai continuar",
+                   "trend", "forecast", "projection", "heading", "will it",
+                   "where is it going", "outlook", "growing", "falling", "rising", "declining",
                    "going up", "going down", "over time", "evolution",
                    "accelerat", "decelerat", "slowing", "seasonal",
                    "seasonality", "trajectory", "history", "time series",
@@ -620,8 +625,9 @@ PLAYBOOK (bloco `conhecimento`)
 Quando os FATOS trouxerem `conhecimento`, são trechos do seu playbook
 recuperados para ESTA situação. Use-os para deixar o "o que fazer" com cara
 de quem já viveu o problema (com quem falar, o que não fazer, como medir
-depois) e cite a fonte no fim da frase, entre parênteses, com o título do
-trecho. O playbook diz O QUE fazer, nunca QUANTO: nenhum número da resposta
+depois). Não cite a fonte nem diga "segundo o playbook" — a fonte já aparece
+na tela, abaixo da resposta; na conversa, fale como quem sabe o que fazer.
+O playbook diz O QUE fazer, nunca QUANTO: nenhum número da resposta
 pode vir dele. Se um trecho não combinar com o que os números mostram,
 ignore-o — o número manda, o playbook acompanha.
 
@@ -1031,10 +1037,12 @@ def executar(
     if plano["intencao"] == "tendencia":
         t = mod_tendencia.analisar(con, dom, mk, ctx.inicio, ctx.fim, ctx.filtros)
         if t is None:
-            linhas.append(L("Não há dias suficientes no período selecionado "
-                            "para ler tendência.",
-                            "There are not enough days in the selected period "
-                            "to read a trend."))
+            linhas.append(L("Não há pontos suficientes para ler tendência — "
+                            "nem no período selecionado, nem na série mensal "
+                            "dos últimos 12 meses.",
+                            "There are not enough points to read a trend — "
+                            "neither in the selected period nor in the "
+                            "monthly series of the last 12 months."))
             return fatos, None, None, linhas
         fatos.update({
             "direcao": t.direcao,
@@ -1048,7 +1056,18 @@ def executar(
             "momento": pct(t.momento) if t.momento is not None else None,
             "dias_seguidos_fora_da_mediana": t.sequencia,
             "n_dias": t.n_dias,
+            # "dia" ou "mes": métrica de maturação é lida na série mensal, e
+            # aí inclinação, n e média recente estão em meses, não em dias.
+            "granularidade": t.granularidade,
         })
+        if t.projecao is not None:
+            fatos["projecao_se_o_ritmo_continuar"] = numero(t.projecao, m)
+            fatos["horizonte_da_projecao"] = L(
+                f"{t.horizonte} dias", f"{t.horizonte} days") if (
+                t.granularidade == "dia") else L("próximo mês", "next month")
+            fatos["ressalva_projecao"] = L(
+                "reta prolongada, não modelo de previsão",
+                "the line extended, not a forecasting model")
         linhas += mod_tendencia.descrever(t)
         grafico = t.serie
         tabela = t.perfil_semanal[["dia", "valor", "indice"]].dropna().rename(

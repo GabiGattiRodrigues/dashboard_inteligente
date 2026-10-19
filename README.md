@@ -387,7 +387,8 @@ taxa, efeito mix, tendência, sazonalidade, alerta) para os quais serve.
 
 Depois que o motor calcula a situação, ela vira consulta nesse playbook
 (`vulcano/conhecimento.py`). O trecho recuperado entra no bloco `conhecimento`
-dos FATOS, o narrador usa na recomendação e cita a fonte, e o mesmo trecho
+dos FATOS, o narrador usa na recomendação (a fonte fica no expansor, não no
+texto da conversa), e o mesmo trecho
 aparece no cartão de alerta e no expansor "o que o agente consultou".
 
 O RAG entra **só no que fazer, nunca no número**. Recuperar número por

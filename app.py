@@ -148,7 +148,7 @@ ARQUITETURA = [
     ("04", "Leitura, não só número",
      "Toda resposta sai em três camadas: o número, o que explica (segmento, "
      "efeito taxa vs mix, tendência) e o que fazer. O que fazer ainda busca "
-     "(RAG) o trecho certo do playbook de cada agente, e cita a fonte."),
+     "(RAG) o trecho certo do playbook de cada agente, com a fonte à vista."),
 ]
 
 ARQUITETURA_EN = [
@@ -169,8 +169,8 @@ ARQUITETURA_EN = [
     ("04", "A reading, not just a number",
      "Every answer comes in three layers: the number, what explains it "
      "(segment, rate vs mix effect, trend) and what to do. What to do also "
-     "retrieves (RAG) the right passage of each agent's playbook, and cites "
-     "the source."),
+     "retrieves (RAG) the right passage of each agent's playbook, with the "
+     "source on display."),
 ]
 
 DECISOES = [
@@ -1057,7 +1057,9 @@ def aba_agente(con, dom, inicio, fim, preset, filtros, quebra):
                                 use_container_width=True,
                                 key=f"ag_casc_{dom.chave}_{n}")
             elif r.plano["intencao"] == "tendencia":
-                st.plotly_chart(g.linha_temporal(r.grafico, m, coluna="valor"),
+                st.plotly_chart(g.linha_temporal(
+                    r.grafico, m, coluna="valor",
+                    mensal=r.fatos.get("granularidade") == "mes"),
                                 use_container_width=True,
                                 key=f"ag_lin_{dom.chave}_{n}")
 
